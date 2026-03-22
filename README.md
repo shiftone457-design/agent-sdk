@@ -20,6 +20,73 @@ npm install agent-sdk
 pnpm add agent-sdk
 ```
 
+## Model Configuration
+
+SDK 支持两种配置方式：**环境变量** 和 **代码配置**。
+
+### 方式一：环境变量
+
+```bash
+# OpenAI
+OPENAI_API_KEY=sk-xxx
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_ORG_ID=org-xxx
+
+# Anthropic
+ANTHROPIC_API_KEY=sk-ant-xxx
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+
+# Ollama (本地模型)
+OLLAMA_BASE_URL=http://localhost:11434
+```
+
+### 方式二：代码配置
+
+```typescript
+import { createOpenAI, createAnthropic, createOllama } from 'agent-sdk';
+
+// OpenAI - 支持自定义 baseUrl 用于兼容 API (如 Azure OpenAI、代理等)
+const openai = createOpenAI({
+  apiKey: 'sk-xxx',
+  baseUrl: 'https://api.openai.com/v1',  // 可选，支持第三方兼容 API
+  model: 'gpt-4o'                        // 可选，默认 'gpt-4o'
+});
+
+// Anthropic
+const anthropic = createAnthropic({
+  apiKey: 'sk-ant-xxx',
+  baseUrl: 'https://api.anthropic.com',  // 可选
+  model: 'claude-sonnet-4-20250514'      // 可选，默认 'claude-sonnet-4-20250514'
+});
+
+// Ollama (本地模型，无需 apiKey)
+const ollama = createOllama({
+  baseUrl: 'http://localhost:11434',     // 可选，默认 'http://localhost:11434'
+  model: 'llama3'                        // 可选，默认 'llama3'
+});
+```
+
+### 优先级
+
+**代码配置 > 环境变量 > 默认值**
+
+```typescript
+// 例如 OpenAI 的配置优先级：
+this.apiKey = config.apiKey || process.env.OPENAI_API_KEY || '';
+this.baseUrl = config.baseUrl || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+```
+
+### 支持的配置项
+
+| Provider | 环境变量 | 配置项 | 默认值 |
+|----------|----------|--------|--------|
+| OpenAI | `OPENAI_API_KEY` | `apiKey` | - |
+| OpenAI | `OPENAI_BASE_URL` | `baseUrl` | `https://api.openai.com/v1` |
+| OpenAI | `OPENAI_ORG_ID` | `organization` | - |
+| Anthropic | `ANTHROPIC_API_KEY` | `apiKey` | - |
+| Anthropic | `ANTHROPIC_BASE_URL` | `baseUrl` | `https://api.anthropic.com` |
+| Ollama | `OLLAMA_BASE_URL` | `baseUrl` | `http://localhost:11434` |
+
 ## Quick Start
 
 ### Basic Usage
