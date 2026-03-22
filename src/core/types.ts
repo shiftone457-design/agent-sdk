@@ -191,6 +191,9 @@ export interface ToolDefinition {
 
   /** 是否危险操作 */
   isDangerous?: boolean;
+
+  /** 工具分类 (e.g., "filesystem", "shell", "web", "planning") */
+  category?: string;
 }
 
 /**

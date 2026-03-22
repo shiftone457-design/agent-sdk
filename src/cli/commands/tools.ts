@@ -34,7 +34,8 @@ export function createToolsCommand(): Command {
         console.log(JSON.stringify(tools.map(t => ({
           name: t.name,
           description: t.description,
-          dangerous: t.isDangerous || false
+          dangerous: t.isDangerous || false,
+          category: t.category || null
         })), null, 2));
       } else {
         console.log(chalk.cyan('\n📦 Available Tools\n'));
@@ -42,11 +43,13 @@ export function createToolsCommand(): Command {
           tools.map(t => ({
             name: t.name,
             description: t.description.slice(0, 50) + (t.description.length > 50 ? '...' : ''),
+            category: t.category || '',
             dangerous: t.isDangerous ? '⚠️' : ''
           })),
           [
-            { key: 'name', header: 'Name', width: 25 },
+            { key: 'name', header: 'Name', width: 20 },
             { key: 'description', header: 'Description', width: 50 },
+            { key: 'category', header: 'Category', width: 12 },
             { key: 'dangerous', header: '', width: 3 }
           ]
         ));
@@ -70,6 +73,7 @@ export function createToolsCommand(): Command {
 
       console.log(chalk.cyan(`\n🔧 ${tool.name}\n`));
       console.log(`Description: ${tool.description}`);
+      console.log(`Category: ${tool.category || 'none'}`);
       console.log(`Dangerous: ${tool.isDangerous ? 'Yes ⚠️' : 'No'}`);
       console.log(`\nParameters Schema:`);
       console.log(JSON.stringify(tool.parameters, null, 2));

@@ -189,13 +189,15 @@ export function createTool(config: {
   parameters: z.ZodSchema;
   handler: ToolDefinition['handler'];
   isDangerous?: boolean;
+  category?: string;
 }): ToolDefinition {
   return {
     name: config.name,
     description: config.description,
     parameters: config.parameters,
     handler: config.handler,
-    isDangerous: config.isDangerous
+    isDangerous: config.isDangerous,
+    category: config.category
   };
 }
 
