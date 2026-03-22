@@ -62,12 +62,28 @@ export function createChatCommand(): Command {
           process.stdout.write(chalk.blue('\nAssistant: '));
 
           let fullResponse = '';
+          let isFirstThinking = true;
+          let lastEventType: string | null = null;
+          
           for await (const event of agent.stream(input, {
             sessionId: options.session
           })) {
+            // 检测thinking块结束
+            if (lastEventType === 'thinking' && event.type !== 'thinking') {
+              process.stdout.write('\n');
+              isFirstThinking = true; // 重置，为下一个thinking块准备
+            }
+            
             if (event.type === 'text_delta') {
               process.stdout.write(event.content);
               fullResponse += event.content;
+            } else if (event.type === 'thinking') {
+              if (isFirstThinking) {
+                process.stdout.write(chalk.gray(`💭 ${event.content}`));
+                isFirstThinking = false;
+              } else {
+                process.stdout.write(chalk.gray(event.content));
+              }
             } else if (event.type === 'tool_call_start') {
               process.stdout.write(chalk.yellow(`\n🔧 ${event.name}...`));
             } else if (event.type === 'tool_result') {
@@ -77,6 +93,13 @@ export function createChatCommand(): Command {
             } else if (event.type === 'error') {
               process.stdout.write(chalk.red(`\n✗ ${event.error.message}`));
             }
+            
+            lastEventType = event.type;
+          }
+          
+          // 循环结束后，如果最后一个事件是thinking，需要换行
+          if (lastEventType === 'thinking') {
+            process.stdout.write('\n');
           }
 
           console.log('\n');
@@ -119,14 +142,37 @@ export function createRunCommand(): Command {
           const result = await agent.run(prompt, { sessionId: options.session });
           console.log(JSON.stringify(result, null, 2));
         } else if (options.stream !== false) {
+          let isFirstThinking = true;
+          let lastEventType: string | null = null;
+          
           for await (const event of agent.stream(prompt, { sessionId: options.session })) {
+            // 检测thinking块结束
+            if (lastEventType === 'thinking' && event.type !== 'thinking') {
+              process.stdout.write('\n');
+              isFirstThinking = true; // 重置，为下一个thinking块准备
+            }
+            
             if (event.type === 'text_delta') {
               process.stdout.write(event.content);
+            } else if (event.type === 'thinking') {
+              if (isFirstThinking) {
+                process.stdout.write(chalk.gray(`💭 ${event.content}`));
+                isFirstThinking = false;
+              } else {
+                process.stdout.write(chalk.gray(event.content));
+              }
             } else if (event.type === 'metadata' && event.data?.usage) {
               console.log(`\n${formatUsage(event.data.usage as TokenUsage)}`);
             } else if (event.type === 'error') {
               console.error(chalk.red(`\nError: ${event.error.message}`));
             }
+            
+            lastEventType = event.type;
+          }
+          
+          // 循环结束后，如果最后一个事件是thinking，需要换行
+          if (lastEventType === 'thinking') {
+            process.stdout.write('\n');
           }
         } else {
           const result = await agent.run(prompt, { sessionId: options.session });

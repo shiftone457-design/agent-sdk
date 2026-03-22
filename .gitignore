@@ -38,3 +38,4 @@ temp/
 
 # Session storage (generated during runtime)
 sessions/
+.claude/settings.local.json

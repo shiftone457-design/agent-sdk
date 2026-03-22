@@ -346,21 +346,53 @@ console.log(result2.content); // "Your name is Alice"
 
 ## CLI Usage
 
+### 本地开发
+
+项目自带 CLI 工具，先确保已构建：
+
 ```bash
-# Interactive chat
-agent-sdk chat --model openai --api-key sk-xxx
+pnpm build
+```
 
-# Single prompt
-agent-sdk run "What is the capital of France?" --model openai
+然后通过 `node` 直接运行：
 
-# List available tools
-agent-sdk tools list
+```bash
+# 查看帮助
+node dist/cli/index.js --help
 
-# List sessions
-agent-sdk sessions list
+# 交互式聊天
+node dist/cli/index.js chat --model openai --api-key sk-xxx
 
-# Connect to MCP server
-agent-sdk mcp connect "npx @modelcontextprotocol/server-filesystem /path"
+# 单次提问
+node dist/cli/index.js run "What is the capital of France?" --model openai
+
+# 列出可用工具
+node dist/cli/index.js tools list
+
+# 列出会话
+node dist/cli/index.js sessions list
+
+# 连接 MCP 服务器
+node dist/cli/index.js mcp connect "npx @modelcontextprotocol/server-filesystem /path"
+```
+
+也可以在 `package.json` 中添加便捷脚本：
+
+```json
+"scripts": {
+  "cli": "node dist/cli/index.js"
+}
+```
+
+然后使用 `pnpm cli tools list`。
+
+### 作为全局/项目依赖安装
+
+如果从 npm 安装（`npm install -g agent-sdk`），可直接使用 `agent-sdk` 命令。在项目内通过 `npx` 调用：
+
+```bash
+npx agent-sdk tools list
+npx agent-sdk chat --model openai --api-key sk-xxx
 ```
 
 ## API Reference

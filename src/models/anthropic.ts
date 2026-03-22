@@ -68,10 +68,16 @@ export class AnthropicAdapter extends BaseModelAdapter {
 
         for (const line of lines) {
           const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          if (!trimmed || !trimmed.startsWith('data:')) continue;
+          // 跳过 'data:' 前缀，可能有空格
+          let jsonStart = 5;
+          if (trimmed.length > 5 && trimmed[5] === ' ') {
+            jsonStart = 6;
+          }
+          const jsonStr = trimmed.slice(jsonStart);
 
           try {
-            const data = JSON.parse(trimmed.slice(6));
+            const data = JSON.parse(jsonStr);
 
             switch (data.type) {
               case 'content_block_start':
@@ -92,6 +98,8 @@ export class AnthropicAdapter extends BaseModelAdapter {
               case 'content_block_delta':
                 if (data.delta?.type === 'text_delta') {
                   yield { type: 'text', content: data.delta.text };
+                } else if (data.delta?.type === 'thinking_delta') {
+                  yield { type: 'thinking', content: data.delta.thinking };
                 } else if (data.delta?.type === 'input_json_delta' && currentToolCall) {
                   currentToolCall.input += data.delta.partial_json;
                   yield {
