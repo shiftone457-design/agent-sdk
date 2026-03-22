@@ -9,6 +9,7 @@ A TypeScript Agent SDK with multi-model support, MCP integration, skill system, 
 - 🔌 **MCP Integration**: Connect to MCP servers for extended capabilities
 - 📚 **Skill System**: Load modular skills from SKILL.md files
 - 💾 **Session Management**: JSONL-based conversation persistence
+- 🧠 **Memory System**: Long-term memory from CLAUDE.md files
 - 🌊 **Streaming Output**: AsyncIterable-based real-time streaming
 - 🖥️ **CLI Tool**: Command-line interface for quick testing
 
@@ -157,6 +158,93 @@ const currentPrompt = agent.getSystemPrompt();
 - **任务执行原则**: 简洁、直接、读后再改等
 - **输出格式**: 代码块、引用格式等
 - **安全指南**: 输入验证、权限控制等
+
+## Memory System
+
+SDK 支持从 CLAUDE.md 文件加载长期记忆，让 Agent 在每次对话开始时自动获取上下文信息。
+
+### 记忆文件位置
+
+默认情况下，SDK 会从以下位置加载记忆：
+
+1. **用户主目录**: `~/.claude/CLAUDE.md` - 适用于所有项目的个人偏好
+2. **工作空间根目录**: `./CLAUDE.md` - 项目特定的规则和上下文
+
+### 启用记忆 (默认开启)
+
+```typescript
+import { Agent, createOpenAI } from 'agent-sdk';
+
+// 默认启用记忆
+const agent = new Agent({
+  model: createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
+});
+
+// 记忆内容会自动添加到用户消息前
+const result = await agent.run('Help me with this code');
+```
+
+### 禁用记忆
+
+```typescript
+const agent = new Agent({
+  model: createOpenAI({ apiKey: process.env.OPENAI_API_KEY }),
+  memory: false  // 禁用记忆功能
+});
+```
+
+### 自定义记忆路径
+
+```typescript
+import { Agent, createOpenAI, MemoryManager } from 'agent-sdk';
+import type { MemoryConfig } from 'agent-sdk';
+
+const memoryConfig: MemoryConfig = {
+  userHomePath: '/custom/path/user-memory.md',    // 可选
+  workspacePath: '/custom/path/project-memory.md' // 可选
+};
+
+const agent = new Agent({
+  model: createOpenAI({ apiKey: process.env.OPENAI_API_KEY }),
+  memory: true,
+  memoryConfig
+});
+```
+
+### 记忆文件格式
+
+记忆内容会被包裹在 `<system-minder>` 标签中：
+
+```markdown
+<system-minder>
+# User Memory
+
+你的个人偏好和规则...
+
+# Workspace Memory
+
+项目特定的规则和上下文...
+</system-minder>
+```
+
+### 直接使用 MemoryManager
+
+```typescript
+import { MemoryManager } from 'agent-sdk';
+
+// 使用默认路径
+const manager = new MemoryManager();
+const memory = manager.loadMemory();
+
+// 使用自定义路径
+const manager = new MemoryManager('/workspace/root', {
+  userHomePath: '/custom/user-memory.md',
+  workspacePath: '/custom/project-memory.md'
+});
+
+// 检查记忆文件是否存在
+const { userHome, workspace } = manager.checkMemoryFiles();
+```
 
 ## Quick Start
 
@@ -390,6 +478,27 @@ await registry.loadAll('./skills');
 registry.register(skill);
 ```
 
+### Memory
+
+```typescript
+// Memory configuration
+interface MemoryConfig {
+  userHomePath?: string;   // Custom user home memory path
+  workspacePath?: string;  // Custom workspace memory path
+}
+
+// Memory manager
+class MemoryManager {
+  constructor(workspaceRoot?: string, config?: MemoryConfig);
+  
+  // Load memory content from both locations
+  loadMemory(): string;
+  
+  // Check if memory files exist
+  checkMemoryFiles(): { userHome: boolean; workspace: boolean };
+}
+```
+
 ## Project Structure
 
 ```
@@ -402,6 +511,7 @@ agent-sdk/
 │   ├── streaming/     # Streaming event system
 │   ├── mcp/           # MCP client integration
 │   ├── skills/        # Skill loader and registry
+│   ├── memory/        # Memory manager (CLAUDE.md loading)
 │   ├── cli/           # Command-line interface
 │   └── index.ts       # Main entry point
 ├── tests/             # Unit and integration tests
