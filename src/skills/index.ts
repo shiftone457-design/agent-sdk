@@ -1,0 +1,5 @@
+// Skills module
+export { SkillLoader, createSkillLoader } from './loader.js';
+export type { SkillLoaderConfig } from './loader.js';
+export { SkillRegistry, createSkillRegistry } from './registry.js';
+export { parseSkillMd, validateMetadata, inferMetadataFromPath } from './parser.js';
