@@ -38,7 +38,7 @@ export class Agent {
 
   constructor(config: AgentConfig) {
     this.config = {
-      maxIterations: 10,
+      maxIterations: 200,
       streaming: true,
       ...config
     };
