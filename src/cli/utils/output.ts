@@ -75,6 +75,89 @@ export function formatEvent(event: StreamEvent, config: OutputConfig = {}): stri
 }
 
 /**
+ * 有状态的流式事件格式化器
+ */
+export interface StreamFormatter {
+  format(event: StreamEvent): string;
+  finalize(): string;
+}
+
+export function createStreamFormatter(): StreamFormatter {
+  let lastEventType: string | null = null;
+  let isFirstThinking = true;
+  const toolCalls = new Map<string, { name: string; arguments: unknown }>();
+
+  return {
+    format(event: StreamEvent): string {
+      let output = '';
+
+      // thinking 块结束时插入换行
+      if (lastEventType === 'thinking' && event.type !== 'thinking') {
+        output += '\n';
+        isFirstThinking = true;
+      }
+
+      switch (event.type) {
+        case 'text_delta':
+          output += event.content;
+          break;
+
+        case 'thinking':
+          if (isFirstThinking) {
+            output += chalk.gray(`💭 ${event.content}`);
+            isFirstThinking = false;
+          } else {
+            output += chalk.gray(event.content);
+          }
+          break;
+
+        case 'tool_call_start':
+          toolCalls.set(event.id, { name: event.name, arguments: undefined });
+          break;
+
+        case 'tool_call':
+          toolCalls.set(event.id, { name: event.name, arguments: event.arguments });
+          break;
+
+        case 'tool_result': {
+          const tc = toolCalls.get(event.toolCallId);
+          const name = tc?.name ?? 'tool';
+          const argsStr = tc?.arguments ? `(${truncate(JSON.stringify(tc.arguments), 80)})` : '()';
+          const resultStr = truncate(event.result, 120);
+          output += chalk.yellow(`\n🔧 ${name}`) + chalk.gray(argsStr) + chalk.green(` ✓ ${resultStr}`);
+          break;
+        }
+
+        case 'tool_error': {
+          const tc = toolCalls.get(event.toolCallId);
+          const name = tc?.name ?? 'tool';
+          const argsStr = tc?.arguments ? `(${truncate(JSON.stringify(tc.arguments), 80)})` : '()';
+          output += chalk.yellow(`\n🔧 ${name}`) + chalk.gray(argsStr) + chalk.red(` ✗ ${event.error.message}`);
+          break;
+        }
+
+        case 'metadata':
+          if (event.data?.usage) {
+            output += `\n${formatUsage(event.data.usage as TokenUsage)}`;
+          }
+          break;
+
+        case 'error':
+          output += chalk.red(`\n✗ ${event.error.message}`);
+          break;
+      }
+
+      lastEventType = event.type;
+      return output;
+    },
+
+    finalize(): string {
+      return lastEventType === 'thinking' ? '\n' : '';
+    }
+  };
+}
+
+/**
  * 格式化 Token 使用统计
  */
 export function formatUsage(usage: TokenUsage, config: OutputConfig = {}): string {
