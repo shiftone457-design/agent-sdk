@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ToolRegistry, createTool } from '../../src/tools/registry.js';
+import { createSkillRegistry } from '../../src/skills/registry.js';
 import { z } from 'zod';
 
 describe('ToolRegistry', () => {
@@ -223,7 +224,8 @@ describe('ToolRegistry', () => {
 describe('Builtin Tools', () => {
   it('should provide all builtin tools', async () => {
     const { getAllBuiltinTools } = await import('../../src/tools/builtin/index.js');
-    const tools = getAllBuiltinTools();
+    const skillRegistry = createSkillRegistry();
+    const tools = getAllBuiltinTools(skillRegistry);
     const names = tools.map(t => t.name);
 
     // Core tools should be present
@@ -245,7 +247,8 @@ describe('Builtin Tools', () => {
 
   it('should filter safe tools (no dangerous)', async () => {
     const { getSafeBuiltinTools } = await import('../../src/tools/builtin/index.js');
-    const tools = getSafeBuiltinTools();
+    const skillRegistry = createSkillRegistry();
+    const tools = getSafeBuiltinTools(skillRegistry);
     const dangerous = tools.filter(t => t.isDangerous);
 
     expect(dangerous).toHaveLength(0);

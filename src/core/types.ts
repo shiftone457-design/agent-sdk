@@ -368,9 +368,6 @@ export interface SkillMetadata {
   /** 作者 */
   author?: string;
 
-  /** 提供的工具 */
-  tools?: string[];
-
   /** 依赖的 Skills */
   dependencies?: string[];
 
@@ -380,6 +377,7 @@ export interface SkillMetadata {
 
 /**
  * Skill 定义
+ * Skill 只是一个指导书，不提供工具
  */
 export interface SkillDefinition {
   /** 元数据 */
@@ -390,12 +388,6 @@ export interface SkillDefinition {
 
   /** 指令内容 */
   instructions: string;
-
-  /** 提供的工具 */
-  tools?: ToolDefinition[];
-
-  /** 引用文件 */
-  references?: string[];
 }
 
 /**

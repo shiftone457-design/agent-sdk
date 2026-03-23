@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { ToolRegistry } from '../../tools/registry.js';
 import { getAllBuiltinTools } from '../../tools/builtin/index.js';
+import { createSkillRegistry } from '../../skills/registry.js';
 import { formatTable } from '../utils/output.js';
 
 /**
@@ -19,7 +20,8 @@ export function createToolsCommand(): Command {
     .option('-c, --category <category>', 'Filter by category')
     .action((options) => {
       const registry = new ToolRegistry();
-      registry.registerMany(getAllBuiltinTools());
+      const skillRegistry = createSkillRegistry();
+      registry.registerMany(getAllBuiltinTools(skillRegistry));
 
       let tools = registry.getAll();
 
@@ -63,7 +65,8 @@ export function createToolsCommand(): Command {
     .description('Show tool details')
     .action((name) => {
       const registry = new ToolRegistry();
-      registry.registerMany(getAllBuiltinTools());
+      const skillRegistry = createSkillRegistry();
+      registry.registerMany(getAllBuiltinTools(skillRegistry));
 
       const tool = registry.get(name);
       if (!tool) {
@@ -86,7 +89,8 @@ export function createToolsCommand(): Command {
     .option('-a, --args <json>', 'Tool arguments as JSON')
     .action(async (name, options) => {
       const registry = new ToolRegistry();
-      registry.registerMany(getAllBuiltinTools());
+      const skillRegistry = createSkillRegistry();
+      registry.registerMany(getAllBuiltinTools(skillRegistry));
 
       if (!registry.has(name)) {
         console.error(chalk.red(`Tool "${name}" not found`));

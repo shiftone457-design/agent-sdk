@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import { join, resolve } from 'path';
-import type { SkillDefinition, ToolDefinition } from '../core/types.js';
+import type { SkillDefinition } from '../core/types.js';
 import { parseSkillMd, inferMetadataFromPath } from './parser.js';
 
 /**
@@ -9,14 +9,13 @@ import { parseSkillMd, inferMetadataFromPath } from './parser.js';
 export interface SkillLoaderConfig {
   /** 基础路径 */
   basePath?: string;
-  /** 是否自动加载脚本 */
-  loadScripts?: boolean;
   /** 文件过滤 */
   filter?: (path: string) => boolean;
 }
 
 /**
  * Skill 加载器
+ * Skill 只是一个指导书，不加载工具脚本
  */
 export class SkillLoader {
   private config: SkillLoaderConfig;
@@ -24,7 +23,6 @@ export class SkillLoader {
   constructor(config: SkillLoaderConfig = {}) {
     this.config = {
       basePath: process.cwd(),
-      loadScripts: true,
       ...config
     };
   }
@@ -34,16 +32,16 @@ export class SkillLoader {
    */
   async load(skillPath: string): Promise<SkillDefinition> {
     const resolvedPath = resolve(this.config.basePath!, skillPath);
-    
+
     // 检查是文件还是目录
     const stat = await this.getPathType(resolvedPath);
-    
+
     if (stat === 'file') {
       return this.loadFromFile(resolvedPath);
     } else if (stat === 'directory') {
       return this.loadFromDirectory(resolvedPath);
     }
-    
+
     throw new Error(`Skill path not found: ${resolvedPath}`);
   }
 
@@ -53,7 +51,7 @@ export class SkillLoader {
   private async loadFromFile(filePath: string): Promise<SkillDefinition> {
     const content = await fs.readFile(filePath, 'utf-8');
     const parsed = parseSkillMd(content);
-    
+
     // 从路径推断元数据
     const metadata = parsed.metadata as any;
     if (!metadata.name || metadata.name === 'unknown') {
@@ -66,8 +64,7 @@ export class SkillLoader {
     return {
       metadata: parsed.metadata,
       path: filePath,
-      instructions: parsed.content,
-      tools: []
+      instructions: parsed.content
     };
   }
 
@@ -76,7 +73,7 @@ export class SkillLoader {
    */
   private async loadFromDirectory(dirPath: string): Promise<SkillDefinition> {
     const skillMdPath = join(dirPath, 'SKILL.md');
-    
+
     // 检查 SKILL.md 是否存在
     try {
       await fs.access(skillMdPath);
@@ -96,100 +93,16 @@ export class SkillLoader {
       }
     }
 
-    // 加载脚本文件
-    let tools: ToolDefinition[] = [];
-    if (this.config.loadScripts) {
-      tools = await this.loadScripts(dirPath);
-    }
-
-    // 加载引用文件
-    const references = await this.loadReferences(dirPath);
+    // 不预加载引用文件，由模型按需读取
 
     return {
       metadata: parsed.metadata,
       path: dirPath,
-      instructions: parsed.content,
-      tools,
-      references
+      instructions: parsed.content
     };
   }
 
-  /**
-   * 加载目录下的所有脚本
-   */
-  private async loadScripts(dirPath: string): Promise<ToolDefinition[]> {
-    const scriptsDir = join(dirPath, 'scripts');
-    const tools: ToolDefinition[] = [];
-
-    try {
-      const entries = await fs.readdir(scriptsDir, { withFileTypes: true });
-      
-      for (const entry of entries) {
-        if (entry.isFile() && (entry.name.endsWith('.js') || entry.name.endsWith('.ts'))) {
-          try {
-            const scriptPath = join(scriptsDir, entry.name);
-            const tool = await this.loadScriptAsTool(scriptPath);
-            if (tool) {
-              tools.push(tool);
-            }
-          } catch (error) {
-            console.warn(`Failed to load script ${entry.name}:`, error);
-          }
-        }
-      }
-    } catch {
-      // scripts 目录不存在，忽略
-    }
-
-    return tools;
-  }
-
-  /**
-   * 将脚本加载为工具
-   */
-  private async loadScriptAsTool(scriptPath: string): Promise<ToolDefinition | null> {
-    try {
-      // 动态导入脚本
-      const module = await import(scriptPath);
-      
-      if (module.default && typeof module.default === 'object') {
-        return module.default as ToolDefinition;
-      }
-      
-      if (module.tool) {
-        return module.tool as ToolDefinition;
-      }
-      
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * 加载引用文件
-   */
-  private async loadReferences(dirPath: string): Promise<string[]> {
-    const refsDir = join(dirPath, 'references');
-    const references: string[] = [];
-
-    try {
-      const entries = await fs.readdir(refsDir, { withFileTypes: true });
-      
-      for (const entry of entries) {
-        if (entry.isFile()) {
-          const refPath = join(refsDir, entry.name);
-          const content = await fs.readFile(refPath, 'utf-8');
-          references.push(content);
-        }
-      }
-    } catch {
-      // references 目录不存在，忽略
-    }
-
-    return references;
-  }
-
+  
   /**
    * 加载目录下的所有 Skills
    */

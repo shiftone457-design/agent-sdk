@@ -5,32 +5,38 @@ export * from './grep.js';
 export * from './web.js';
 export * from './planning.js';
 export * from './interaction.js';
+export * from './skill-activation.js';
 
 import type { ToolDefinition } from '../../core/types.js';
+import type { SkillRegistry } from '../../skills/registry.js';
 import { getFileSystemTools } from './filesystem.js';
 import { getShellTools } from './shell.js';
 import { getGrepTools } from './grep.js';
 import { getWebTools } from './web.js';
 import { getPlanningTools } from './planning.js';
 import { getInteractionTools } from './interaction.js';
+import { getSkillTools } from './skill-activation.js';
 
 /**
  * 获取所有内置工具
+ * @param skillRegistry - Skill注册中心，用于激活skill工具
  */
-export function getAllBuiltinTools(): ToolDefinition[] {
+export function getAllBuiltinTools(skillRegistry: SkillRegistry): ToolDefinition[] {
   return [
     ...getFileSystemTools(),
     ...getShellTools(),
     ...getGrepTools(),
     ...getWebTools(),
     ...getPlanningTools(),
-    ...getInteractionTools()
+    ...getInteractionTools(),
+    ...getSkillTools(skillRegistry)
   ];
 }
 
 /**
  * 获取安全的内置工具 (不含危险操作)
+ * @param skillRegistry - Skill注册中心，用于激活skill工具
  */
-export function getSafeBuiltinTools(): ToolDefinition[] {
-  return getAllBuiltinTools().filter((tool) => !tool.isDangerous);
+export function getSafeBuiltinTools(skillRegistry: SkillRegistry): ToolDefinition[] {
+  return getAllBuiltinTools(skillRegistry).filter((tool) => !tool.isDangerous);
 }

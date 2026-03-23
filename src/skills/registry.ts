@@ -1,18 +1,17 @@
-import type { SkillDefinition, ToolDefinition } from '../core/types.js';
-import { ToolRegistry } from '../tools/registry.js';
+import { promises as fs } from 'fs';
+import type { SkillDefinition } from '../core/types.js';
 import { SkillLoader, type SkillLoaderConfig } from './loader.js';
 
 /**
  * Skill 注册中心
+ * Skill 只是一个指导书，不提供工具
  */
 export class SkillRegistry {
   private skills: Map<string, SkillDefinition> = new Map();
   private loader: SkillLoader;
-  private toolRegistry: ToolRegistry;
 
   constructor(config?: SkillLoaderConfig) {
     this.loader = new SkillLoader(config);
-    this.toolRegistry = new ToolRegistry();
   }
 
   /**
@@ -24,13 +23,6 @@ export class SkillRegistry {
     }
 
     this.skills.set(skill.metadata.name, skill);
-
-    // 注册 Skill 提供的工具
-    if (skill.tools) {
-      for (const tool of skill.tools) {
-        this.toolRegistry.register(tool);
-      }
-    }
   }
 
   /**
@@ -59,18 +51,6 @@ export class SkillRegistry {
    * 注销 Skill
    */
   unregister(name: string): boolean {
-    const skill = this.skills.get(name);
-    if (!skill) {
-      return false;
-    }
-
-    // 注销 Skill 提供的工具
-    if (skill.tools) {
-      for (const tool of skill.tools) {
-        this.toolRegistry.unregister(tool.name);
-      }
-    }
-
     return this.skills.delete(name);
   }
 
@@ -100,40 +80,6 @@ export class SkillRegistry {
    */
   has(name: string): boolean {
     return this.skills.has(name);
-  }
-
-  /**
-   * 获取所有 Skill 的指令
-   */
-  getInstructions(): string {
-    const instructions: string[] = [];
-
-    for (const skill of this.skills.values()) {
-      if (skill.instructions) {
-        instructions.push(`## Skill: ${skill.metadata.name}\n${skill.instructions}`);
-      }
-
-      // 添加引用内容
-      if (skill.references && skill.references.length > 0) {
-        instructions.push(`### References for ${skill.metadata.name}\n${skill.references.join('\n\n')}`);
-      }
-    }
-
-    return instructions.join('\n\n---\n\n');
-  }
-
-  /**
-   * 获取所有工具
-   */
-  getTools(): ToolDefinition[] {
-    return this.toolRegistry.getAll();
-  }
-
-  /**
-   * 获取工具注册中心
-   */
-  getToolRegistry(): ToolRegistry {
-    return this.toolRegistry;
   }
 
   /**
@@ -169,7 +115,6 @@ export class SkillRegistry {
    */
   clear(): void {
     this.skills.clear();
-    this.toolRegistry.clear();
   }
 
   /**
@@ -179,16 +124,84 @@ export class SkillRegistry {
     name: string;
     description: string;
     version?: string;
-    tools: string[];
     path: string;
   }> {
     return this.getAll().map(skill => ({
       name: skill.metadata.name,
       description: skill.metadata.description,
       version: skill.metadata.version,
-      tools: skill.tools?.map(t => t.name) || [],
       path: skill.path
     }));
+  }
+
+  /**
+   * 获取所有 Skill 的元数据列表（用于 System Prompt）
+   */
+  getMetadataList(): Array<{ name: string; description: string }> {
+    return this.getAll().map(skill => ({
+      name: skill.metadata.name,
+      description: skill.metadata.description
+    }));
+  }
+
+  /**
+   * 获取格式化的 Skill 列表文本（用于 System Prompt）
+   */
+  getFormattedList(): string {
+    const skillList = this.getMetadataList();
+    if (skillList.length === 0) {
+      return 'No skills are currently available.';
+    }
+    const skillsText = skillList
+      .map(s => `- **${s.name}**: ${s.description}`)
+      .join('\n');
+    return `**Available Skills:**\n${skillsText}`;
+  }
+
+  /**
+   * 根据名称获取 Skill 路径
+   */
+  getSkillPath(name: string): string | undefined {
+    const skill = this.skills.get(name);
+    return skill?.path;
+  }
+
+  /**
+   * 加载 Skill 全量内容
+   */
+  async loadFullContent(name: string): Promise<string> {
+    const skill = this.skills.get(name);
+    if (!skill) {
+      throw new Error(`Skill "${name}" not found`);
+    }
+
+    // 如果是目录，读取 SKILL.md
+    if (skill.path) {
+      const { join } = await import('path');
+
+      try {
+        const pathStat = await fs.stat(skill.path);
+        let skillMdPath: string;
+
+        if (pathStat.isDirectory()) {
+          skillMdPath = join(skill.path, 'SKILL.md');
+        } else {
+          skillMdPath = skill.path;
+        }
+
+        const content = await fs.readFile(skillMdPath, 'utf-8');
+        return content;
+      } catch (error) {
+        throw new Error(`Failed to read skill file: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // 如果已有instructions，直接返回
+    if (skill.instructions) {
+      return skill.instructions;
+    }
+
+    throw new Error(`No content available for skill "${name}"`);
   }
 }
 

@@ -15,6 +15,7 @@ import { SessionManager } from '../storage/session.js';
 import { DEFAULT_SYSTEM_PROMPT } from './prompts.js';
 import { MemoryManager } from '../memory/manager.js';
 import { MCPAdapter } from '../mcp/adapter.js';
+import { SkillRegistry, createSkillRegistry } from '../skills/registry.js';
 
 /**
  * 流式执行选项
@@ -34,7 +35,7 @@ export class Agent {
   private sessionManager: SessionManager;
   private messages: Message[] = [];
   private mcpAdapter: MCPAdapter | null = null;
-  private _skills: Map<string, unknown> = new Map();
+  private skillRegistry: SkillRegistry;
 
   constructor(config: AgentConfig) {
     this.config = {
@@ -43,16 +44,26 @@ export class Agent {
       ...config
     };
 
+    // 初始化 Skill 注册中心
+    this.skillRegistry = createSkillRegistry();
+
     // 初始化工具注册中心
     this.toolRegistry = new ToolRegistry();
 
-    // 注册内置工具
+    // 加载配置的 skills（同步加载元数据）
+    if (config.skills && config.skills.length > 0) {
+      this.initializeSkills(config.skills).catch(err => {
+        console.error('Failed to initialize skills:', err);
+      });
+    }
+
+    // 注册内置工具（包含 activate_skill 工具）
     if (config.tools !== undefined) {
       // 用户提供了自定义工具列表
       this.toolRegistry.registerMany(config.tools);
     } else {
-      // 使用所有内置工具
-      this.toolRegistry.registerMany(getAllBuiltinTools());
+      // 使用所有内置工具（包含 skill 工具）
+      this.toolRegistry.registerMany(getAllBuiltinTools(this.skillRegistry));
     }
 
     // 初始化会话管理器
@@ -65,6 +76,19 @@ export class Agent {
       this.initializeMCP(config.mcpServers).catch(err => {
         console.error('Failed to initialize MCP servers:', err);
       });
+    }
+  }
+
+  /**
+   * 初始化 Skills
+   */
+  private async initializeSkills(skillPaths: string[]): Promise<void> {
+    for (const path of skillPaths) {
+      try {
+        await this.skillRegistry.load(path);
+      } catch (err) {
+        console.error(`Failed to load skill from "${path}":`, err);
+      }
     }
   }
 
@@ -88,14 +112,20 @@ export class Agent {
    * 处理默认提示词、替换模式、追加模式
    */
   private buildSystemPrompt(customPrompt?: SystemPrompt): string {
-    // 如果没有自定义提示词，返回默认提示词
+    // 从默认提示词开始
+    let basePrompt = DEFAULT_SYSTEM_PROMPT;
+
+    // 注入 skill 列表
+    basePrompt = basePrompt.replace('{{SKILL_LIST}}', this.skillRegistry.getFormattedList());
+
+    // 如果没有自定义提示词，返回处理后的提示词
     if (!customPrompt) {
-      return DEFAULT_SYSTEM_PROMPT;
+      return basePrompt;
     }
 
     // 如果是字符串，默认为追加模式
     if (typeof customPrompt === 'string') {
-      return `${DEFAULT_SYSTEM_PROMPT}\n\n${customPrompt}`;
+      return `${basePrompt}\n\n${customPrompt}`;
     }
 
     // 如果是配置对象
@@ -106,7 +136,7 @@ export class Agent {
       return content;
     } else {
       // 追加模式：默认提示词 + 自定义内容
-      return `${DEFAULT_SYSTEM_PROMPT}\n\n${content}`;
+      return `${basePrompt}\n\n${content}`;
     }
   }
 
@@ -347,10 +377,15 @@ export class Agent {
   /**
    * 加载 Skill
    */
-  async loadSkill(_path: string): Promise<void> {
-    // 将在 Skill 系统中实现
-    // 这里预留接口
-    void this._skills; // 保留引用以备后用
+  async loadSkill(path: string): Promise<void> {
+    await this.skillRegistry.load(path);
+  }
+
+  /**
+   * 获取 Skill 注册中心
+   */
+  getSkillRegistry(): SkillRegistry {
+    return this.skillRegistry;
   }
 
   /**

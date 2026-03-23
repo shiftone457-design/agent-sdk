@@ -58,20 +58,20 @@ The name should be inferred from the title.`;
   it('should parse array values in frontmatter', () => {
     const content = `---
 name: array-test
-tools:
-  - tool1
-  - tool2
 dependencies:
   - dep1
   - dep2
+tags:
+  - tag1
+  - tag2
 ---
 
 Content here`;
 
     const result = parseSkillMd(content);
 
-    expect(result.metadata.tools).toEqual(['tool1', 'tool2']);
     expect(result.metadata.dependencies).toEqual(['dep1', 'dep2']);
+    expect(result.metadata.tags).toEqual(['tag1', 'tag2']);
   });
 
   it('should handle quoted values', () => {
