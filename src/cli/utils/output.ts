@@ -104,7 +104,7 @@ export function createStreamFormatter(): StreamFormatter {
 
         case 'thinking':
           if (isFirstThinking) {
-            output += chalk.gray(`💭 ${event.content}`);
+            output += `\n${chalk.gray(`💭 ${event.content}`)}`;
             isFirstThinking = false;
           } else {
             output += chalk.gray(event.content);
