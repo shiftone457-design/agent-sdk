@@ -22,16 +22,15 @@ When to use tools:
 - Run multiple independent tool calls in parallel when possible
 
 ### Skills
-Skills are modular packages that extend your capabilities with specialized knowledge.
-Each skill provides instructions, tools, and reference materials for specific tasks.
+Skills are instruction guides for specialized tasks. When activated, you receive the skill's full content including any referenced file paths.
 
 {{SKILL_LIST}}
 
-To use a skill:
-1. Identify which skill matches your current task based on the description
-2. Call the \`activate_skill\` tool with the skill name
-3. Read and follow the skill's instructions in the returned content
-4. Execute the task according to the skill's guidance
+**Usage:**
+1. Match the task to a skill description above
+2. Call \`activate_skill\` with the skill name
+3. Follow the returned instructions
+4. Use the provided Base Path to read any referenced files
 
 ### Sessions
 - Conversations are persisted in sessions
