@@ -9,7 +9,7 @@ export const readFileTool = createTool({
   name: 'read_file',
   category: 'filesystem',
   description:
-    'Reads the contents of a given file. Use this tool when you want to see what is inside a file. Outputs with cat -n style line numbers. Lines longer than 2000 characters are truncated. Use the offset and limit parameters to read specific line ranges of large files.',
+    'Reads the contents of a text file. Use this tool when you want to see what is inside a file. Outputs with cat -n style line numbers. Lines longer than 2000 characters are truncated. Use the offset and limit parameters to read specific line ranges of large files. NOTE: This tool only works with text files (e.g., .txt, .md, .json, .ts, .js, .py). Do NOT use it for binary files like .xlsx, .pdf, .png, .zip, .exe, etc., as the output will be garbled.',
   parameters: z.object({
     path: z.string().describe('The absolute path to the file to read'),
     offset: z
