@@ -1,259 +1,156 @@
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { z } from 'zod';
-import type { ToolDefinition, ToolResult, MCPServerConfig, MCPResource, MCPPrompt } from '../core/types.js';
+import type { ToolDefinition, ToolResult } from '../core/types.js';
 
-/**
- * MCP 客户端配置
- */
-export interface MCPClientConfig extends MCPServerConfig {
-  /** 连接超时（毫秒） */
-  connectTimeout?: number;
-  /** 调用超时（毫秒） */
-  callTimeout?: number;
+export interface StdioMCPConfig {
+  name: string;
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
 }
 
-/**
- * MCP Tool 定义 (来自 MCP 服务器)
- */
-export interface MCPToolDefinition {
+export interface HttpMCPConfig {
+  name: string;
+  url: string;
+  headers?: Record<string, string>;
+}
+
+export type MCPClientConfig = StdioMCPConfig | HttpMCPConfig;
+
+export interface MCPTool {
   name: string;
   description?: string;
-  inputSchema?: {
+  inputSchema: {
     type: 'object';
     properties?: Record<string, unknown>;
     required?: string[];
   };
 }
 
-/**
- * MCP 客户端
- * 封装与 MCP 服务器的通信
- */
+export interface MCPResource {
+  uri: string;
+  name: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface MCPPrompt {
+  name: string;
+  description?: string;
+  arguments?: Array<{
+    name: string;
+    description?: string;
+    required?: boolean;
+  }>;
+}
+
+export interface PromptMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+function isStdioConfig(config: MCPClientConfig): config is StdioMCPConfig {
+  return 'command' in config;
+}
+
 export class MCPClient {
-  private config: MCPClientConfig;
-  private connected = false;
-  private process: any = null;
-  private tools: MCPToolDefinition[] = [];
-  private resources: MCPResource[] = [];
-  private prompts: MCPPrompt[] = [];
+  private client: Client;
+  private transport: Transport;
+  private _name: string;
+  private _connected = false;
+  private _tools: MCPTool[] = [];
+  private _serverInfo?: { name: string; version: string };
 
   constructor(config: MCPClientConfig) {
-    this.config = {
-      connectTimeout: 30000,
-      callTimeout: 60000,
-      ...config
-    };
+    this._name = config.name;
+
+    this.client = new Client(
+      { name: 'agent-sdk-client', version: '0.1.0' },
+      { capabilities: {} }
+    );
+
+    if (isStdioConfig(config)) {
+      this.transport = new StdioClientTransport({
+        command: config.command,
+        args: config.args,
+        env: config.env
+      });
+    } else {
+      this.transport = new StreamableHTTPClientTransport(
+        new URL(config.url),
+        { requestInit: { headers: config.headers } }
+      );
+    }
   }
 
-  /**
-   * 连接到 MCP 服务器
-   */
   async connect(): Promise<void> {
-    if (this.connected) {
-      return;
-    }
+    if (this._connected) return;
 
-    if (this.config.transport === 'stdio') {
-      await this.connectStdio();
-    } else {
-      await this.connectHttp();
-    }
+    await this.client.connect(this.transport);
+    this._connected = true;
 
-    this.connected = true;
-  }
-
-  /**
-   * 通过 stdio 连接
-   */
-  private async connectStdio(): Promise<void> {
-    if (!this.config.command) {
-      throw new Error('Command is required for stdio transport');
-    }
-
-    const { spawn } = await import('child_process');
-
-    return new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('Connection timeout'));
-      }, this.config.connectTimeout);
-
-      try {
-        this.process = spawn(this.config.command!, this.config.args || [], {
-          env: { ...process.env, ...this.config.env },
-          stdio: ['pipe', 'pipe', 'pipe']
-        });
-
-        this.process.on('error', (err: Error) => {
-          clearTimeout(timeout);
-          reject(err);
-        });
-
-        // 发送初始化请求
-        this.sendRequest('initialize', {
-          protocolVersion: '2024-11-05',
-          capabilities: {},
-          clientInfo: {
-            name: 'agent-sdk',
-            version: '0.1.0'
-          }
-        }).then(() => {
-          clearTimeout(timeout);
-          resolve();
-        }).catch((err) => {
-          clearTimeout(timeout);
-          reject(err);
-        });
-      } catch (err) {
-        clearTimeout(timeout);
-        reject(err);
-      }
-    });
-  }
-
-  /**
-   * 通过 HTTP 连接
-   */
-  private async connectHttp(): Promise<void> {
-    if (!this.config.url) {
-      throw new Error('URL is required for HTTP transport');
-    }
-
-    // HTTP 连接实现
-    // 这里简化处理，实际应该使用 SSE 或 WebSocket
-    this.connected = true;
-  }
-
-  /**
-   * 断开连接
-   */
-  async disconnect(): Promise<void> {
-    if (!this.connected) {
-      return;
-    }
-
-    if (this.process) {
-      this.process.kill();
-      this.process = null;
-    }
-
-    this.connected = false;
-  }
-
-  /**
-   * 发送请求
-   */
-  private async sendRequest(method: string, params: unknown): Promise<unknown> {
-    if (!this.connected && method !== 'initialize') {
-      throw new Error('Not connected to MCP server');
-    }
-
-    const request = {
-      jsonrpc: '2.0',
-      id: Date.now(),
-      method,
-      params
-    };
-
-    if (this.config.transport === 'stdio' && this.process) {
-      return this.sendStdioRequest(request);
-    } else {
-      return this.sendHttpRequest(request);
-    }
-  }
-
-  /**
-   * 通过 stdio 发送请求
-   */
-  private sendStdioRequest(request: unknown): Promise<unknown> {
-    return new Promise((resolve, reject) => {
-      if (!this.process?.stdin || !this.process?.stdout) {
-        reject(new Error('Process not available'));
-        return;
-      }
-
-      const data = JSON.stringify(request) + '\n';
-
-      const timeout = setTimeout(() => {
-        reject(new Error('Request timeout'));
-      }, this.config.callTimeout);
-
-      const handler = (chunk: Buffer) => {
-        try {
-          const response = JSON.parse(chunk.toString());
-          if (response.id === (request as any).id) {
-            clearTimeout(timeout);
-            this.process.stdout.removeListener('data', handler);
-
-            if (response.error) {
-              reject(new Error(response.error.message));
-            } else {
-              resolve(response.result);
-            }
-          }
-        } catch {
-          // 忽略解析错误
-        }
+    const serverInfo = this.client.getServerVersion();
+    if (serverInfo) {
+      this._serverInfo = {
+        name: serverInfo.name,
+        version: serverInfo.version
       };
-
-      this.process.stdout.on('data', handler);
-      this.process.stdin.write(data);
-    });
-  }
-
-  /**
-   * 通过 HTTP 发送请求
-   */
-  private async sendHttpRequest(request: unknown): Promise<unknown> {
-    const response = await fetch(this.config.url!, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...this.config.headers
-      },
-      body: JSON.stringify(request)
-    });
-
-    const result = await response.json() as any;
-
-    if (result.error) {
-      throw new Error(result.error.message);
     }
 
-    return result.result;
+    await this.listTools();
   }
 
-  /**
-   * 列出可用工具
-   */
-  async listTools(): Promise<MCPToolDefinition[]> {
-    const result = await this.sendRequest('tools/list', {}) as any;
-    this.tools = result.tools || [];
-    return this.tools;
+  async disconnect(): Promise<void> {
+    if (!this._connected) return;
+
+    await this.client.close();
+    this._connected = false;
   }
 
-  /**
-   * 调用工具
-   */
+  async listTools(): Promise<MCPTool[]> {
+    const result = await this.client.listTools();
+    this._tools = result.tools.map(tool => ({
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema as MCPTool['inputSchema']
+    }));
+    return this._tools;
+  }
+
   async callTool(name: string, args: unknown): Promise<ToolResult> {
     try {
-      const result = await this.sendRequest('tools/call', {
+      const result = await this.client.callTool({
         name,
-        arguments: args
-      }) as any;
+        arguments: args as Record<string, unknown>
+      });
 
-      // 将 MCP 结果转换为 ToolResult
-      const content = result.content?.map((c: any) => {
-        if (c.type === 'text') {
-          return c.text;
-        }
-        if (c.type === 'image') {
-          return `[Image: ${c.mimeType}]`;
-        }
-        return JSON.stringify(c);
-      }).join('\n') || JSON.stringify(result);
+      if ('toolResult' in result) {
+        return {
+          content: JSON.stringify(result.toolResult),
+          isError: false
+        };
+      }
+
+      const content = result.content
+        .map(c => {
+          if (c.type === 'text') return c.text;
+          if (c.type === 'image') return `[Image: ${c.mimeType}]`;
+          if (c.type === 'resource') {
+            const res = c.resource;
+            if ('text' in res) return res.text;
+            if ('blob' in res) return `[Blob: ${res.mimeType}]`;
+            return '';
+          }
+          return JSON.stringify(c);
+        })
+        .join('\n');
 
       return {
         content,
-        isError: result.isError || false
+        isError: result.isError ?? false
       };
     } catch (error) {
       return {
@@ -263,92 +160,60 @@ export class MCPClient {
     }
   }
 
-  /**
-   * 列出资源
-   */
   async listResources(): Promise<MCPResource[]> {
-    const result = await this.sendRequest('resources/list', {}) as any;
-    this.resources = result.resources || [];
-    return this.resources;
+    const result = await this.client.listResources();
+    return result.resources.map(r => ({
+      uri: r.uri,
+      name: r.name,
+      description: r.description,
+      mimeType: r.mimeType
+    }));
   }
 
-  /**
-   * 读取资源
-   */
-  async readResource(uri: string): Promise<{ content: string; mimeType?: string }> {
-    const result = await this.sendRequest('resources/read', { uri }) as any;
-    const content = result.contents?.[0];
-    return {
-      content: content?.text || content?.blob || '',
-      mimeType: content?.mimeType
-    };
+  async readResource(uri: string): Promise<string> {
+    const result = await this.client.readResource({ uri });
+    const content = result.contents[0];
+    if (!content) return '';
+    if ('text' in content) return content.text;
+    if ('blob' in content) return content.blob;
+    return '';
   }
 
-  /**
-   * 列出 Prompts
-   */
   async listPrompts(): Promise<MCPPrompt[]> {
-    const result = await this.sendRequest('prompts/list', {}) as any;
-    this.prompts = result.prompts || [];
-    return this.prompts;
+    const result = await this.client.listPrompts();
+    return result.prompts.map((p: { name: string; description?: string; arguments?: Array<{ name: string; description?: string; required?: boolean }> }) => ({
+      name: p.name,
+      description: p.description,
+      arguments: p.arguments?.map((a: { name: string; description?: string; required?: boolean }) => ({
+        name: a.name,
+        description: a.description,
+        required: a.required
+      }))
+    }));
   }
 
-  /**
-   * 获取 Prompt
-   */
-  async getPrompt(name: string, args?: Record<string, string>): Promise<{
-    messages: Array<{ role: string; content: string }>;
-  }> {
-    const result = await this.sendRequest('prompts/get', {
+  async getPrompt(name: string, args?: Record<string, string>): Promise<PromptMessage[]> {
+    const result = await this.client.getPrompt({
       name,
       arguments: args
-    }) as any;
+    });
 
-    return {
-      messages: result.messages?.map((m: any) => ({
-        role: m.role,
-        content: m.content?.text || m.content || ''
-      })) || []
-    };
+    return result.messages.map(m => ({
+      role: m.role,
+      content: m.content.type === 'text' ? m.content.text : JSON.stringify(m.content)
+    }));
   }
 
-  /**
-   * 获取服务器名称
-   */
-  get name(): string {
-    return this.config.name;
-  }
-
-  /**
-   * 检查是否已连接
-   */
-  get isConnected(): boolean {
-    return this.connected;
-  }
-
-  /**
-   * 获取缓存的工具列表
-   */
-  getCachedTools(): MCPToolDefinition[] {
-    return this.tools;
-  }
-
-  /**
-   * 转换为本地 ToolDefinition
-   */
   toToolDefinitions(): ToolDefinition[] {
-    return this.tools.map(tool => ({
-      name: `${this.config.name}__${tool.name}`,
+    return this._tools.map(tool => ({
+      name: `${this._name}__${tool.name}`,
       description: tool.description || `MCP tool: ${tool.name}`,
       parameters: this.convertSchema(tool.inputSchema),
       handler: async (args: unknown) => this.callTool(tool.name, args)
     }));
   }
 
-  /**
-   * 转换 JSON Schema 为 Zod Schema
-   */
-  private convertSchema(schema?: MCPToolDefinition['inputSchema']): z.ZodSchema {
+  private convertSchema(schema?: MCPTool['inputSchema']): z.ZodSchema {
     if (!schema || !schema.properties) {
       return z.object({}).passthrough();
     }
@@ -356,7 +221,7 @@ export class MCPClient {
     const shape: Record<string, z.ZodSchema> = {};
 
     for (const [key, value] of Object.entries(schema.properties)) {
-      const field = value as any;
+      const field = value as { type?: string; description?: string };
       let zodField: z.ZodSchema;
 
       switch (field.type) {
@@ -393,11 +258,24 @@ export class MCPClient {
 
     return z.object(shape);
   }
+
+  get name(): string {
+    return this._name;
+  }
+
+  get connected(): boolean {
+    return this._connected;
+  }
+
+  get serverInfo(): { name: string; version: string } | undefined {
+    return this._serverInfo;
+  }
+
+  get tools(): MCPTool[] {
+    return this._tools;
+  }
 }
 
-/**
- * 创建 MCP 客户端
- */
 export function createMCPClient(config: MCPClientConfig): MCPClient {
   return new MCPClient(config);
 }

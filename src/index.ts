@@ -42,14 +42,17 @@ export {
   MCPClient,
   createMCPClient,
   MCPAdapter,
-  createMCPAdapter,
-  createStdioTransport,
-  createHttpTransport,
-  createWebSocketTransport,
-  createMCPServerConfig,
-  MCPServers
+  createMCPAdapter
 } from './mcp/index.js';
-export type { MCPClientConfig, MCPToolDefinition, TransportConfig, TransportType } from './mcp/index.js';
+export type {
+  MCPClientConfig,
+  StdioMCPConfig,
+  HttpMCPConfig,
+  MCPTool,
+  MCPResource,
+  MCPPrompt,
+  PromptMessage
+} from './mcp/index.js';
 
 // Skills
 export {

@@ -15,7 +15,24 @@ import { SessionManager } from '../storage/session.js';
 import { DEFAULT_SYSTEM_PROMPT } from './prompts.js';
 import { MemoryManager } from '../memory/manager.js';
 import { MCPAdapter } from '../mcp/adapter.js';
+import type { MCPClientConfig } from '../mcp/client.js';
 import { SkillRegistry, createSkillRegistry } from '../skills/registry.js';
+
+function toMCPClientConfig(config: MCPServerConfig): MCPClientConfig {
+  if (config.transport === 'http') {
+    return {
+      name: config.name,
+      url: config.url!,
+      headers: config.headers
+    };
+  }
+  return {
+    name: config.name,
+    command: config.command!,
+    args: config.args,
+    env: config.env
+  };
+}
 
 /**
  * 流式执行选项
@@ -401,13 +418,10 @@ export class Agent {
       this.mcpAdapter = new MCPAdapter();
     }
 
-    // 添加服务器
-    await this.mcpAdapter.addServer(config);
+    await this.mcpAdapter.addServer(toMCPClientConfig(config));
 
-    // 获取工具定义并注册到工具注册中心
     const mcpTools = this.mcpAdapter.getToolDefinitions();
     for (const tool of mcpTools) {
-      // 只注册属于这个服务器的工具
       if (tool.name.startsWith(`${config.name}__`)) {
         this.toolRegistry.register(tool);
       }
