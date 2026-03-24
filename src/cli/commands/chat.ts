@@ -56,6 +56,9 @@ export function createChatCommand(): Command {
         mcpServers: mcpResult.servers
       });
 
+      // 等待 Agent 初始化完成（skill 加载、MCP 连接等）
+      await agent.waitForInit();
+
       console.log(chalk.cyan('🤖 Agent SDK Chat'));
       console.log(chalk.gray(`Model: ${model.name}`));
       console.log(chalk.gray('Type "exit" or "quit" to end the session\n'));
@@ -141,6 +144,9 @@ export function createRunCommand(): Command {
           maxTokens: options.maxTokens,
           mcpServers: mcpResult.servers
         });
+
+        // 等待 Agent 初始化完成
+        await agent.waitForInit();
 
         try {
           if (options.output === 'json') {

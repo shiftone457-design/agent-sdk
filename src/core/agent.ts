@@ -36,6 +36,7 @@ export class Agent {
   private messages: Message[] = [];
   private mcpAdapter: MCPAdapter | null = null;
   private skillRegistry: SkillRegistry;
+  private initPromise: Promise<void>;
 
   constructor(config: AgentConfig) {
     this.config = {
@@ -50,14 +51,6 @@ export class Agent {
     // 初始化工具注册中心
     this.toolRegistry = new ToolRegistry();
 
-    // 初始化 skills（默认路径 + 配置路径）
-    this.skillRegistry.initialize(
-      this.config.skillConfig,
-      this.config.skills
-    ).catch(err => {
-      console.error('Failed to initialize skills:', err);
-    });
-
     // 注册内置工具（包含 activate_skill 工具）
     if (config.tools !== undefined) {
       // 用户提供了自定义工具列表
@@ -70,14 +63,38 @@ export class Agent {
     // 初始化会话管理器
     this.sessionManager = new SessionManager(config.storage);
 
-    // 初始化 MCP 适配器（异步初始化，不阻塞构造函数）
-    if (config.mcpServers && config.mcpServers.length > 0) {
-      this.mcpAdapter = new MCPAdapter();
-      // 异步连接 MCP 服务器
-      this.initializeMCP(config.mcpServers).catch(err => {
-        console.error('Failed to initialize MCP servers:', err);
-      });
+    // 启动异步初始化，保存 Promise 供外部等待
+    this.initPromise = this.initializeAsync();
+  }
+
+  /**
+   * 异步初始化（skills 和 MCP）
+   */
+  private async initializeAsync(): Promise<void> {
+    try {
+      // 初始化 skills（默认路径 + 配置路径）
+      await this.skillRegistry.initialize(
+        this.config.skillConfig,
+        this.config.skills
+      );
+
+      // 初始化 MCP 适配器
+      if (this.config.mcpServers && this.config.mcpServers.length > 0) {
+        this.mcpAdapter = new MCPAdapter();
+        await this.initializeMCP(this.config.mcpServers);
+      }
+    } catch (err) {
+      // 初始化失败不应阻塞 Agent 使用，只输出警告
+      console.error('Failed to initialize:', err);
     }
+  }
+
+  /**
+   * 等待初始化完成
+   * CLI 应在开始交互前调用此方法
+   */
+  async waitForInit(): Promise<void> {
+    await this.initPromise;
   }
 
   /**
