@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { join } from 'path';
+import { homedir } from 'os';
 import type { MCPServerConfig } from '../core/types.js';
 
 /**
@@ -27,7 +28,10 @@ export interface MCPConfigFile {
  */
 export interface MCPConfigLoadResult {
   servers: MCPServerConfig[];
+  /** 主配置文件路径 */
   configPath?: string;
+  /** 所有加载的配置文件路径 */
+  configPaths?: string[];
 }
 
 /**
@@ -104,63 +108,84 @@ function transformConfig(config: MCPConfigFile): MCPServerConfig[] {
 
 /**
  * 查找配置文件
- * 从当前目录向上搜索 mcp_config.json
+ * 支持用户目录和工作目录两种路径
  */
-function findConfigFile(startDir: string = process.cwd()): string | null {
-  let currentDir = startDir;
+function findConfigFiles(startDir: string = process.cwd()): string[] {
+  const paths: string[] = [];
 
-  // 最多向上搜索 10 层
-  for (let i = 0; i < 10; i++) {
-    const configPath = join(currentDir, 'mcp_config.json');
-    if (existsSync(configPath)) {
-      return configPath;
-    }
-
-    const parentDir = dirname(currentDir);
-    if (parentDir === currentDir) {
-      // 已到达根目录
-      break;
-    }
-    currentDir = parentDir;
+  // 用户目录（优先级低，先加载）
+  const userConfig = join(homedir(), '.claude', 'mcp_config.json');
+  if (existsSync(userConfig)) {
+    paths.push(userConfig);
   }
 
-  return null;
+  // 工作目录（优先级高，后加载覆盖）
+  const workspaceConfig = join(startDir, '.claude', 'mcp_config.json');
+  if (existsSync(workspaceConfig)) {
+    paths.push(workspaceConfig);
+  }
+
+  return paths;
+}
+
+/**
+ * 加载单个配置文件
+ */
+function loadSingleConfig(filePath: string): MCPServerConfig[] {
+  const content = readFileSync(filePath, 'utf-8');
+  const rawConfig = JSON.parse(content) as MCPConfigFile;
+  const expandedConfig = expandEnvVarsInObject(rawConfig) as MCPConfigFile;
+  return transformConfig(expandedConfig);
 }
 
 /**
  * 加载 MCP 配置
- * @param configPath 可选的配置文件路径，如未提供则自动搜索
+ * @param configPath 可选的配置文件路径，如未提供则自动加载用户目录和工作目录配置
  * @param startDir 搜索起始目录，默认为当前工作目录
  */
 export function loadMCPConfig(
   configPath?: string,
   startDir: string = process.cwd()
 ): MCPConfigLoadResult {
-  // 确定配置文件路径
-  const filePath = configPath || findConfigFile(startDir);
+  // 显式指定路径 -> 单文件加载
+  if (configPath) {
+    if (!existsSync(configPath)) {
+      return { servers: [] };
+    }
 
-  if (!filePath) {
+    try {
+      const servers = loadSingleConfig(configPath);
+      return { servers, configPath };
+    } catch (error) {
+      console.error(`Failed to load MCP config from ${configPath}:`, error);
+      return { servers: [] };
+    }
+  }
+
+  // 自动加载 -> 多文件合并
+  const configPaths = findConfigFiles(startDir);
+  if (configPaths.length === 0) {
     return { servers: [] };
   }
 
-  try {
-    const content = readFileSync(filePath, 'utf-8');
-    const rawConfig = JSON.parse(content) as MCPConfigFile;
-
-    // 展开环境变量
-    const expandedConfig = expandEnvVarsInObject(rawConfig) as MCPConfigFile;
-
-    // 转换格式
-    const servers = transformConfig(expandedConfig);
-
-    return {
-      servers,
-      configPath: filePath
-    };
-  } catch (error) {
-    console.error(`Failed to load MCP config from ${filePath}:`, error);
-    return { servers: [] };
+  // 合并配置（用户目录先加载，工作目录后覆盖）
+  const mergedServers = new Map<string, MCPServerConfig>();
+  for (const path of configPaths) {
+    try {
+      const servers = loadSingleConfig(path);
+      for (const server of servers) {
+        mergedServers.set(server.name, server);
+      }
+    } catch (error) {
+      console.error(`Failed to load MCP config from ${path}:`, error);
+    }
   }
+
+  return {
+    servers: Array.from(mergedServers.values()),
+    configPath: configPaths[configPaths.length - 1], // 主配置（工作目录）
+    configPaths
+  };
 }
 
 /**
