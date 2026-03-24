@@ -12,6 +12,7 @@ export const todoWriteTool = createTool({
   category: 'planning',
   description: `MUST USE for multi-step tasks. Creates a structured task list to track progress. Call this tool FIRST before executing any complex task.
 
+Triggers: multi-step tasks, multiple files/components, user provides task list.
 Skip: single simple task, informational questions.`,
   parameters: z.object({
     todos: z
