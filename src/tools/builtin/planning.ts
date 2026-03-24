@@ -10,8 +10,10 @@ const todoStatusEnum = z.enum(['pending', 'in_progress', 'completed']);
 export const todoWriteTool = createTool({
   name: 'todo_write',
   category: 'planning',
-  description:
-    'Creates and manages a structured task list for the current session. Use this tool to track progress on multi-step tasks. Exactly one task should be in_progress at any time. Mark tasks completed immediately after finishing them.',
+  description: `MUST USE when task has >= 3 steps. Creates a structured task list to track progress. Call this tool FIRST when receiving complex instructions.
+
+Triggers: multi-step tasks, multiple files/components, user provides task list.
+Skip: single simple task, informational questions.`,
   parameters: z.object({
     todos: z
       .array(
