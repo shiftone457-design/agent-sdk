@@ -5,7 +5,7 @@ import { MemoryStorage } from './memory.js';
 /**
  * 存储工厂函数
  */
-export function createStorage(config?: StorageConfig): StorageAdapter {
+export function createStorage(config?: StorageConfig & { basePath?: string }): StorageAdapter {
   switch (config?.type) {
     case 'memory':
       return new MemoryStorage();

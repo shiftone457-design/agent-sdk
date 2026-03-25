@@ -257,7 +257,6 @@ export interface SessionInfo {
  */
 export interface StorageConfig {
   type: 'jsonl' | 'memory';
-  basePath?: string;
 }
 
 /**
@@ -448,6 +447,9 @@ export interface SystemPromptConfig {
 
   /** 模式: 'replace' 替换默认提示词, 'append' 追加到默认提示词 */
   mode?: 'replace' | 'append';
+
+  /** 是否包含环境信息，默认 true */
+  includeEnvironment?: boolean;
 }
 
 /**

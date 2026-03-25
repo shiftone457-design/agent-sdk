@@ -15,8 +15,23 @@ export function getEnvironmentInfo(cwd: string): EnvironmentInfo {
     isGitRepo = true;
   } catch { /* not a git repo */ }
 
-  const shell = process.env.SHELL 
-    || (process.platform === 'win32' ? 'powershell' : undefined);
+  // 检测 Shell
+  let shell: string | undefined;
+  if (process.platform === 'win32') {
+    // Windows: 检查 ComSpec (cmd.exe 或 powershell.exe)
+    const comSpec = process.env.ComSpec;
+    if (comSpec) {
+      const comSpecName = comSpec.split('\\').pop()?.replace(/\.exe$/i, '');
+      shell = comSpecName === 'cmd' ? 'cmd' : comSpecName;
+    }
+    // 默认
+    if (!shell) {
+      shell = 'powershell';
+    }
+  } else {
+    // Unix: 使用 SHELL 环境变量
+    shell = process.env.SHELL?.split('/').pop();
+  }
 
   return {
     cwd,

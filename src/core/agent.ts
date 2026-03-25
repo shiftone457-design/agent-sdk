@@ -11,6 +11,8 @@ import type {
   ContextManagerConfig,
   Message
 } from '../core/types.js';
+import { homedir } from 'os';
+import { join } from 'path';
 import { ToolRegistry } from '../tools/registry.js';
 import { getAllBuiltinTools } from '../tools/builtin/index.js';
 import { SessionManager } from '../storage/session.js';
@@ -96,8 +98,12 @@ export class Agent {
       this.toolRegistry.registerMany(getAllBuiltinTools(this.skillRegistry));
     }
 
-// 初始化会话管理器
-    this.sessionManager = new SessionManager(config.storage);
+    // 初始化会话管理器（存储在用户目录下）
+    const storageBasePath = join(config.userBasePath || homedir(), '.claude', 'sessions');
+    this.sessionManager = new SessionManager({
+      type: config.storage?.type || 'jsonl',
+      basePath: storageBasePath
+    });
 
     // 初始化 ContextManager
     if (config.contextManagement !== false) {
@@ -162,38 +168,45 @@ export class Agent {
    * 处理默认提示词、替换模式、追加模式
    */
   private buildSystemPrompt(customPrompt?: SystemPrompt): string {
-    // 从默认提示词开始
-    let basePrompt = DEFAULT_SYSTEM_PROMPT;
+    // 判断是否需要包含环境信息
+    // 优先级：customPrompt.includeEnvironment > config.includeEnvironment > true
+    const shouldIncludeEnv = typeof customPrompt === 'object' 
+      ? customPrompt.includeEnvironment !== false
+      : this.config.includeEnvironment !== false;
 
-    // 注入 skill 列表
-    basePrompt = basePrompt.replace('{{SKILL_LIST}}', this.skillRegistry.getFormattedList());
-
-    // 注入环境信息
-    if (this.config.includeEnvironment !== false) {
+    // 生成环境信息部分
+    let envSection = '';
+    if (shouldIncludeEnv) {
       const cwd = this.config.cwd || process.cwd();
       const envInfo = getEnvironmentInfo(cwd);
-      basePrompt += formatEnvironmentSection(envInfo);
+      envSection = formatEnvironmentSection(envInfo);
     }
 
-    // 如果没有自定义提示词，返回处理后的提示词
+    // 没有自定义提示词
     if (!customPrompt) {
-      return basePrompt;
+      let basePrompt = DEFAULT_SYSTEM_PROMPT;
+      basePrompt = basePrompt.replace('{{SKILL_LIST}}', this.skillRegistry.getFormattedList());
+      return basePrompt + envSection;
     }
 
-    // 如果是字符串，默认为追加模式
+    // 字符串形式：追加模式
     if (typeof customPrompt === 'string') {
-      return `${basePrompt}\n\n${customPrompt}`;
+      let basePrompt = DEFAULT_SYSTEM_PROMPT;
+      basePrompt = basePrompt.replace('{{SKILL_LIST}}', this.skillRegistry.getFormattedList());
+      return `${basePrompt}${envSection}\n\n${customPrompt}`;
     }
 
-    // 如果是配置对象
+    // 配置对象
     const { content, mode = 'append' } = customPrompt;
 
     if (mode === 'replace') {
-      // 替换模式：完全使用自定义提示词
-      return content;
+      // 替换模式：使用自定义内容 + 环境信息
+      return content + envSection;
     } else {
-      // 追加模式：默认提示词 + 自定义内容
-      return `${basePrompt}\n\n${content}`;
+      // 追加模式：默认提示词 + 环境信息 + 自定义内容
+      let basePrompt = DEFAULT_SYSTEM_PROMPT;
+      basePrompt = basePrompt.replace('{{SKILL_LIST}}', this.skillRegistry.getFormattedList());
+      return `${basePrompt}${envSection}\n\n${content}`;
     }
   }
 

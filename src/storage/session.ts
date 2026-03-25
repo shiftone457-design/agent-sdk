@@ -3,13 +3,21 @@ import type { StorageAdapter, Message, SessionInfo, StorageConfig } from '../cor
 import { createStorage } from './interface.js';
 
 /**
+ * 会话管理器配置
+ */
+export interface SessionManagerConfig extends StorageConfig {
+  /** 存储路径 */
+  basePath?: string;
+}
+
+/**
  * 会话管理器
  */
 export class SessionManager {
   private storage: StorageAdapter;
   private currentSessionId: string | null = null;
 
-  constructor(config?: StorageConfig) {
+  constructor(config?: SessionManagerConfig) {
     this.storage = createStorage(config);
   }
 
