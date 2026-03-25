@@ -1,14 +1,17 @@
 import type {
-  Message,
   StreamChunk,
   ToolCall,
   TokenUsage,
+  SessionTokenUsage,
   AgentConfig,
   AgentResult,
   StreamEvent,
   SystemPrompt,
-  MCPServerConfig
+  MCPServerConfig,
+  ContextManagerConfig,
+  Message
 } from '../core/types.js';
+import type { CompressionStats } from './compressor.js';
 import { ToolRegistry } from '../tools/registry.js';
 import { getAllBuiltinTools } from '../tools/builtin/index.js';
 import { SessionManager } from '../storage/session.js';
@@ -17,6 +20,7 @@ import { MemoryManager } from '../memory/manager.js';
 import { MCPAdapter } from '../mcp/adapter.js';
 import type { MCPClientConfig } from '../mcp/client.js';
 import { SkillRegistry, createSkillRegistry } from '../skills/registry.js';
+import { ContextManager } from './context-manager.js';
 
 function toMCPClientConfig(config: MCPServerConfig): MCPClientConfig {
   if (config.transport === 'http') {
@@ -54,6 +58,16 @@ export class Agent {
   private mcpAdapter: MCPAdapter | null = null;
   private skillRegistry: SkillRegistry;
   private initPromise: Promise<void>;
+  private contextManager: ContextManager | null = null;
+
+  // 累计 token 使用量 (从 API 响应获取)
+  private sessionUsage: SessionTokenUsage = {
+    inputTokens: 0,
+    outputTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    totalTokens: 0
+  };
 
   constructor(config: AgentConfig) {
     this.config = {
@@ -77,8 +91,17 @@ export class Agent {
       this.toolRegistry.registerMany(getAllBuiltinTools(this.skillRegistry));
     }
 
-    // 初始化会话管理器
+// 初始化会话管理器
     this.sessionManager = new SessionManager(config.storage);
+
+    // 初始化 ContextManager
+    if (config.contextManagement !== false) {
+      const cmConfig: ContextManagerConfig = config.contextManagement === true
+        ? {}
+        : config.contextManagement ?? {};
+
+      this.contextManager = new ContextManager(config.model, cmConfig);
+    }
 
     // 启动异步初始化，保存 Promise 供外部等待
     this.initPromise = this.initializeAsync();
@@ -228,6 +251,29 @@ export class Agent {
       };
 
       for (let iteration = 0; iteration < maxIterations; iteration++) {
+        // ===== 上下文压缩检查 =====
+        if (this.contextManager) {
+          // 先执行 prune 清理旧工具输出
+          this.messages = this.contextManager.prune(this.messages);
+
+          // 检查是否需要压缩
+          if (this.contextManager.shouldCompress(this.sessionUsage)) {
+            const result = await this.contextManager.compress(this.messages);
+            this.messages = result.messages;
+            this.sessionUsage = this.contextManager.resetUsage();
+
+            const stats: CompressionStats = result.stats;
+            yield {
+              type: 'metadata',
+              data: {
+                event: 'context_compressed',
+                stats
+              }
+            };
+          }
+        }
+        // ===== 压缩检查结束 =====
+
         const modelParams = {
           messages: this.messages,
           tools: this.toolRegistry.getAll(),
@@ -260,6 +306,11 @@ export class Agent {
 
             if (event.type === 'metadata' && event.data?.usage) {
               totalUsage = this.mergeUsage(totalUsage, event.data.usage as TokenUsage);
+              // 累计 session token 使用量
+              const usage = event.data.usage as TokenUsage;
+              this.sessionUsage.inputTokens += usage.promptTokens;
+              this.sessionUsage.outputTokens += usage.completionTokens;
+              this.sessionUsage.totalTokens += usage.totalTokens;
             }
           }
         }
@@ -543,6 +594,46 @@ export class Agent {
     return typeof systemMessage.content === 'string' 
       ? systemMessage.content 
       : undefined;
+  }
+
+  /**
+   * 手动触发上下文压缩
+   */
+  async compressContext(): Promise<{
+    messageCount: number;
+    stats: { originalMessageCount: number; compressedMessageCount: number; durationMs: number };
+  }> {
+    if (!this.contextManager) {
+      throw new Error('Context management is disabled');
+    }
+
+    const result = await this.contextManager.compress(this.messages);
+    this.messages = result.messages;
+    this.sessionUsage = this.contextManager.resetUsage();
+
+    // 保存压缩后的会话
+    await this.sessionManager.saveMessages(this.messages);
+
+    return {
+      messageCount: this.messages.length,
+      stats: result.stats
+    };
+  }
+
+  /**
+   * 获取上下文状态
+   */
+  getContextStatus(): {
+    used: number;
+    usable: number;
+    needsCompaction: boolean;
+    compressCount: number;
+  } | null {
+    if (!this.contextManager) {
+      return null;
+    }
+
+    return this.contextManager.getStatus(this.sessionUsage);
   }
 
   /**
