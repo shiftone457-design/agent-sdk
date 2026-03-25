@@ -147,25 +147,22 @@ describe('MemoryManager', () => {
     unlinkSync(join(customDir, 'memory.md'));
   });
 
-  it('should use custom user home path from config', () => {
-    // Create a custom user memory file
-    const customUserDir = join(tmpdir(), `agent-sdk-user-${Date.now()}`);
-    mkdirSync(customUserDir, { recursive: true });
+  it('should use custom user base path', () => {
+    // Create a custom user base directory with .claude/CLAUDE.md structure
+    const customBaseDir = join(tmpdir(), `agent-sdk-user-base-${Date.now()}`);
+    const claudeDir = join(customBaseDir, '.claude');
+    mkdirSync(claudeDir, { recursive: true });
     const customUserContent = '# Custom User Rules\n\nAlways use const';
-    const customUserPath = join(customUserDir, 'user-memory.md');
-    writeFileSync(customUserPath, customUserContent);
+    writeFileSync(join(claudeDir, 'CLAUDE.md'), customUserContent);
 
-    // Use custom user home path config
-    const config: MemoryConfig = {
-      userHomePath: customUserPath
-    };
-    const manager = new MemoryManager(testWorkspaceDir, config);
+    // Use custom user base path
+    const manager = new MemoryManager(testWorkspaceDir, undefined, customBaseDir);
     const memory = manager.loadMemory();
 
     expect(memory).toContain(customUserContent);
     expect(memory).toContain('# User Memory');
 
     // Cleanup
-    unlinkSync(customUserPath);
+    unlinkSync(join(claudeDir, 'CLAUDE.md'));
   });
 });

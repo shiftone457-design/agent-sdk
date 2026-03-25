@@ -13,11 +13,13 @@ export class SkillRegistry {
   private skills: Map<string, SkillDefinition> = new Map();
   private loader: SkillLoader;
   private workspaceRoot: string;
+  private userBasePath: string;
   private skillConfig?: SkillConfig;
 
-  constructor(config?: SkillLoaderConfig) {
+  constructor(config?: SkillLoaderConfig & { userBasePath?: string }) {
     this.loader = new SkillLoader(config);
     this.workspaceRoot = config?.basePath || process.cwd();
+    this.userBasePath = config?.userBasePath || homedir();
   }
 
   /**
@@ -217,11 +219,10 @@ ${skillsText}
   private getDefaultPaths(): string[] {
     const paths: string[] = [];
 
-    // 用户主目录: ~/.claude/skills/
-    const userHomePath = this.skillConfig?.userHomePath
-      || join(homedir(), '.claude', 'skills');
-    if (existsSync(userHomePath)) {
-      paths.push(userHomePath);
+    // 用户主目录: {userBasePath}/.claude/skills/
+    const userPath = join(this.userBasePath, '.claude', 'skills');
+    if (existsSync(userPath)) {
+      paths.push(userPath);
     }
 
     // 工作空间目录: ./.claude/skills/

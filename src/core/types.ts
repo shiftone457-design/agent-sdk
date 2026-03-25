@@ -485,6 +485,9 @@ export interface AgentConfig {
   /** MCP 服务器配置 */
   mcpServers?: MCPServerConfig[];
 
+  /** 用户级基础路径，默认 ~ (homedir)，用于定位 .claude/ 目录 */
+  userBasePath?: string;
+
   /** 存储配置 */
   storage?: StorageConfig;
 
@@ -523,8 +526,6 @@ export interface AgentConfig {
  * 记忆配置选项
  */
 export interface MemoryConfig {
-  /** 用户主目录记忆文件路径 */
-  userHomePath?: string;
   /** 工作空间记忆文件路径 */
   workspacePath?: string;
 }
@@ -535,8 +536,6 @@ export interface MemoryConfig {
 export interface SkillConfig {
   /** 是否启用默认路径加载，默认 true */
   autoLoad?: boolean;
-  /** 用户主目录 skills 路径，默认 ~/.claude/skills/ */
-  userHomePath?: string;
   /** 工作空间 skills 路径，默认 ./.claude/skills/ */
   workspacePath?: string;
   /** 额外的 skills 路径列表 */
@@ -622,6 +621,9 @@ export interface CLIConfig {
 
   /** MCP 配置文件路径 */
   mcpConfig?: string;
+
+  /** 用户级基础路径，默认 ~ (homedir) */
+  userBasePath?: string;
 }
 
 /**

@@ -9,6 +9,8 @@ import { parseSkillMd, inferMetadataFromPath } from './parser.js';
 export interface SkillLoaderConfig {
   /** 基础路径 */
   basePath?: string;
+  /** 用户级基础路径 */
+  userBasePath?: string;
   /** 文件过滤 */
   filter?: (path: string) => boolean;
 }

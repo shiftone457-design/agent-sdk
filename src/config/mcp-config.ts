@@ -110,11 +110,12 @@ function transformConfig(config: MCPConfigFile): MCPServerConfig[] {
  * 查找配置文件
  * 支持用户目录和工作目录两种路径
  */
-function findConfigFiles(startDir: string = process.cwd()): string[] {
+function findConfigFiles(startDir: string = process.cwd(), userBasePath?: string): string[] {
   const paths: string[] = [];
+  const base = userBasePath || homedir();
 
   // 用户目录（优先级低，先加载）
-  const userConfig = join(homedir(), '.claude', 'mcp_config.json');
+  const userConfig = join(base, '.claude', 'mcp_config.json');
   if (existsSync(userConfig)) {
     paths.push(userConfig);
   }
@@ -142,10 +143,12 @@ function loadSingleConfig(filePath: string): MCPServerConfig[] {
  * 加载 MCP 配置
  * @param configPath 可选的配置文件路径，如未提供则自动加载用户目录和工作目录配置
  * @param startDir 搜索起始目录，默认为当前工作目录
+ * @param userBasePath 用户级基础路径，默认 ~ (homedir)
  */
 export function loadMCPConfig(
   configPath?: string,
-  startDir: string = process.cwd()
+  startDir: string = process.cwd(),
+  userBasePath?: string
 ): MCPConfigLoadResult {
   // 显式指定路径 -> 单文件加载
   if (configPath) {
@@ -163,7 +166,7 @@ export function loadMCPConfig(
   }
 
   // 自动加载 -> 多文件合并
-  const configPaths = findConfigFiles(startDir);
+  const configPaths = findConfigFiles(startDir, userBasePath);
   if (configPaths.length === 0) {
     return { servers: [] };
   }

@@ -9,26 +9,28 @@ import type { MemoryConfig } from '../core/types.js';
  */
 export class MemoryManager {
   private workspaceRoot: string;
+  private userBasePath: string;
   private config: MemoryConfig;
 
-  constructor(workspaceRoot?: string, config?: MemoryConfig) {
+  constructor(workspaceRoot?: string, config?: MemoryConfig, userBasePath?: string) {
     this.workspaceRoot = workspaceRoot || process.cwd();
+    this.userBasePath = userBasePath || homedir();
     this.config = config || {};
   }
 
   /**
-   * Loads memory content from both user home (~/.claude/CLAUDE.md)
+   * Loads memory content from both user home ({userBasePath}/.claude/CLAUDE.md)
    * and workspace root (./CLAUDE.md).
    * @returns Combined memory content wrapped in system-minder tags
    */
   loadMemory(): string {
     const memories: string[] = [];
 
-    // 1. Load user home memory (~/.claude/CLAUDE.md)
-    const userHomePath = this.config.userHomePath || join(homedir(), '.claude', 'CLAUDE.md');
-    if (existsSync(userHomePath)) {
+    // 1. Load user home memory ({userBasePath}/.claude/CLAUDE.md)
+    const userPath = join(this.userBasePath, '.claude', 'CLAUDE.md');
+    if (existsSync(userPath)) {
       try {
-        const content = readFileSync(userHomePath, 'utf-8');
+        const content = readFileSync(userPath, 'utf-8');
         if (content.trim()) {
           memories.push(`# User Memory\n\n${content}`);
         }
@@ -64,11 +66,11 @@ export class MemoryManager {
    * @returns Object indicating existence of each memory file type
    */
   checkMemoryFiles(): { userHome: boolean; workspace: boolean } {
-    const userHomePath = this.config.userHomePath || join(homedir(), '.claude', 'CLAUDE.md');
+    const userPath = join(this.userBasePath, '.claude', 'CLAUDE.md');
     const workspacePath = this.config.workspacePath || join(this.workspaceRoot, 'CLAUDE.md');
 
     return {
-      userHome: existsSync(userHomePath),
+      userHome: existsSync(userPath),
       workspace: existsSync(workspacePath)
     };
   }

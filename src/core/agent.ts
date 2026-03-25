@@ -76,7 +76,7 @@ export class Agent {
     };
 
     // 初始化 Skill 注册中心
-    this.skillRegistry = createSkillRegistry();
+    this.skillRegistry = createSkillRegistry({ userBasePath: config.userBasePath });
 
     // 初始化工具注册中心
     this.toolRegistry = new ToolRegistry();
@@ -221,7 +221,7 @@ export class Agent {
       // 只有当还没有用户消息时才加载记忆
       // 这样可以确保记忆只被加载一次，并且是在对话开始时
       if (!hasUserMessages) {
-        const memoryManager = new MemoryManager(undefined, this.config.memoryConfig);
+        const memoryManager = new MemoryManager(undefined, this.config.memoryConfig, this.config.userBasePath);
         const memoryContent = memoryManager.loadMemory();
         
         if (memoryContent) {

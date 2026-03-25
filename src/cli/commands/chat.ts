@@ -17,7 +17,8 @@ function addModelOptions(cmd: Command): Command {
     .option('-t, --temperature <temp>', 'Temperature', parseFloat)
     .option('--max-tokens <tokens>', 'Max tokens', (v) => parseInt(v, 10))
     .option('--no-stream', 'Disable streaming')
-    .option('--mcp-config <path>', 'Path to MCP config file (mcp_config.json)');
+    .option('--mcp-config <path>', 'Path to MCP config file (mcp_config.json)')
+    .option('--user-base-path <path>', 'User base path (default: ~)');
 }
 
 function createModelFromOptions(options: CLIConfig) {
@@ -40,7 +41,7 @@ export function createChatCommand(): Command {
       const model = createModelFromOptions(options);
 
       // 加载 MCP 配置
-      const mcpResult = loadMCPConfig(options.mcpConfig);
+      const mcpResult = loadMCPConfig(options.mcpConfig, process.cwd(), options.userBasePath);
       if (mcpResult.configPath) {
         console.log(chalk.gray(`Loaded MCP config from: ${mcpResult.configPath}`));
         if (mcpResult.servers.length > 0) {
@@ -53,7 +54,8 @@ export function createChatCommand(): Command {
         systemPrompt: options.system,
         temperature: options.temperature,
         maxTokens: options.maxTokens,
-        mcpServers: mcpResult.servers
+        mcpServers: mcpResult.servers,
+        userBasePath: options.userBasePath
       });
 
       // 等待 Agent 初始化完成（skill 加载、MCP 连接等）
@@ -132,7 +134,7 @@ export function createRunCommand(): Command {
         const model = createModelFromOptions(options);
 
         // 加载 MCP 配置
-        const mcpResult = loadMCPConfig(options.mcpConfig);
+        const mcpResult = loadMCPConfig(options.mcpConfig, process.cwd(), options.userBasePath);
         if (mcpResult.configPath) {
           console.log(chalk.gray(`Loaded MCP config from: ${mcpResult.configPath}`));
         }
@@ -142,7 +144,8 @@ export function createRunCommand(): Command {
           systemPrompt: options.system,
           temperature: options.temperature,
           maxTokens: options.maxTokens,
-          mcpServers: mcpResult.servers
+          mcpServers: mcpResult.servers,
+          userBasePath: options.userBasePath
         });
 
         // 等待 Agent 初始化完成
