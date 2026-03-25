@@ -1,3 +1,4 @@
+import { existsSync } from 'fs';
 import { execSync } from 'child_process';
 
 export interface EnvironmentInfo {
@@ -8,6 +9,31 @@ export interface EnvironmentInfo {
   shell: string | undefined;
 }
 
+export function getShellPath(): string {
+  if (process.platform === 'win32') {
+    const gitBashPaths = [
+      'C:\\Program Files\\Git\\bin\\bash.exe',
+      'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
+    ];
+    for (const path of gitBashPaths) {
+      if (existsSync(path)) return path;
+    }
+    try {
+      const bashPath = execSync('where bash', { encoding: 'utf-8' }).trim().split('\n')[0];
+      if (bashPath && existsSync(bashPath)) return bashPath;
+    } catch { /* not found */ }
+
+    try {
+      execSync('where pwsh', { encoding: 'utf-8' });
+      return 'pwsh';
+    } catch { /* not found */ }
+
+    return 'powershell.exe';
+  }
+
+  return process.env.SHELL || '/bin/bash';
+}
+
 export function getEnvironmentInfo(cwd: string): EnvironmentInfo {
   let isGitRepo = false;
   try {
@@ -15,23 +41,8 @@ export function getEnvironmentInfo(cwd: string): EnvironmentInfo {
     isGitRepo = true;
   } catch { /* not a git repo */ }
 
-  // 检测 Shell
-  let shell: string | undefined;
-  if (process.platform === 'win32') {
-    // Windows: 检查 ComSpec (cmd.exe 或 powershell.exe)
-    const comSpec = process.env.ComSpec;
-    if (comSpec) {
-      const comSpecName = comSpec.split('\\').pop()?.replace(/\.exe$/i, '');
-      shell = comSpecName === 'cmd' ? 'cmd' : comSpecName;
-    }
-    // 默认
-    if (!shell) {
-      shell = 'powershell';
-    }
-  } else {
-    // Unix: 使用 SHELL 环境变量
-    shell = process.env.SHELL?.split('/').pop();
-  }
+  const shellPath = getShellPath();
+  const shell = shellPath.split(/[/\\]/).pop()?.replace(/\.exe$/i, '');
 
   return {
     cwd,

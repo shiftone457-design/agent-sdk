@@ -1,5 +1,7 @@
+import { spawn } from 'child_process';
 import { z } from 'zod';
 import { createTool } from '../registry.js';
+import { getShellPath } from '../../core/environment.js';
 import type { ToolDefinition } from '../../core/types.js';
 
 /**
@@ -29,37 +31,60 @@ export const bashTool = createTool({
   }),
   isDangerous: true,
   handler: async ({ command, description: desc, cwd, timeout, env }) => {
-    try {
-      const { exec } = await import('child_process');
-      const { promisify } = await import('util');
-      const execAsync = promisify(exec);
+    return new Promise((resolve) => {
+      const shellPath = getShellPath();
+      let stdout = '';
+      let stderr = '';
 
-      const result = await execAsync(command, {
+      const child = spawn(command, [], {
+        shell: shellPath,
         cwd,
-        timeout,
         env: { ...process.env, ...env },
-        encoding: 'utf-8',
-        maxBuffer: 1024 * 1024 * 10 // 10MB
       });
 
-      const output: string[] = [];
-      if (result.stdout) output.push(result.stdout);
-      if (result.stderr) output.push(`STDERR:\n${result.stderr}`);
+      const timer = setTimeout(() => {
+        child.kill();
+        resolve({
+          content: `${desc ? `[${desc}]\n` : ''}Command timed out after ${timeout}ms`,
+          isError: true
+        });
+      }, timeout);
 
-      const prefix = desc ? `[${desc}]\n` : '';
-      return {
-        content: prefix + (output.join('\n') || 'Command executed successfully (no output)')
-      };
-    } catch (error: any) {
-      const output: string[] = [];
-      if (error.stdout) output.push(error.stdout);
-      if (error.stderr) output.push(`STDERR:\n${error.stderr}`);
+      child.stdout.on('data', (data) => {
+        stdout += data.toString();
+      });
 
-      return {
-        content: `Command failed (exit code ${error.code ?? 'unknown'}): ${error.message}\n${output.join('\n')}`,
-        isError: true
-      };
-    }
+      child.stderr.on('data', (data) => {
+        stderr += data.toString();
+      });
+
+      child.on('error', (error) => {
+        clearTimeout(timer);
+        resolve({
+          content: `${desc ? `[${desc}]\n` : ''}Command failed: ${error.message}`,
+          isError: true
+        });
+      });
+
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        const output: string[] = [];
+        if (stdout) output.push(stdout);
+        if (stderr) output.push(`STDERR:\n${stderr}`);
+
+        const prefix = desc ? `[${desc}]\n` : '';
+        if (code === 0) {
+          resolve({
+            content: prefix + (output.join('\n') || 'Command executed successfully (no output)')
+          });
+        } else {
+          resolve({
+            content: `${prefix}Command failed (exit code ${code})\n${output.join('\n')}`,
+            isError: true
+          });
+        }
+      });
+    });
   }
 });
 
