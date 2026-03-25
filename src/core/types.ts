@@ -529,6 +529,12 @@ export interface AgentConfig {
 
   /** 上下文管理配置 */
   contextManagement?: boolean | ContextManagerConfig;
+
+  /** 工作目录，默认 process.cwd() */
+  cwd?: string;
+
+  /** 是否注入环境信息到 system prompt，默认 true */
+  includeEnvironment?: boolean;
 }
 
 /**
@@ -633,6 +639,9 @@ export interface CLIConfig {
 
   /** 用户级基础路径，默认 ~ (homedir) */
   userBasePath?: string;
+
+  /** 工作目录 */
+  cwd?: string;
 }
 
 /**

@@ -18,7 +18,7 @@ export class SkillRegistry {
 
   constructor(config?: SkillLoaderConfig & { userBasePath?: string }) {
     this.loader = new SkillLoader(config);
-    this.workspaceRoot = config?.basePath || process.cwd();
+    this.workspaceRoot = config?.cwd || process.cwd();
     this.userBasePath = config?.userBasePath || homedir();
   }
 

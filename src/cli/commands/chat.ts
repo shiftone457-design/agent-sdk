@@ -18,7 +18,8 @@ function addModelOptions(cmd: Command): Command {
     .option('--max-tokens <tokens>', 'Max tokens', (v) => parseInt(v, 10))
     .option('--no-stream', 'Disable streaming')
     .option('--mcp-config <path>', 'Path to MCP config file (mcp_config.json)')
-    .option('--user-base-path <path>', 'User base path (default: ~)');
+    .option('--user-base-path <path>', 'User base path (default: ~)')
+    .option('--cwd <path>', 'Working directory (default: current directory)');
 }
 
 function createModelFromOptions(options: CLIConfig) {
@@ -41,7 +42,7 @@ export function createChatCommand(): Command {
       const model = createModelFromOptions(options);
 
       // 加载 MCP 配置
-      const mcpResult = loadMCPConfig(options.mcpConfig, process.cwd(), options.userBasePath);
+      const mcpResult = loadMCPConfig(options.mcpConfig, options.cwd || process.cwd(), options.userBasePath);
       if (mcpResult.configPath) {
         console.log(chalk.gray(`Loaded MCP config from: ${mcpResult.configPath}`));
         if (mcpResult.servers.length > 0) {
@@ -51,6 +52,7 @@ export function createChatCommand(): Command {
 
       const agent = new Agent({
         model,
+        cwd: options.cwd || process.cwd(),
         systemPrompt: options.system,
         temperature: options.temperature,
         maxTokens: options.maxTokens,
@@ -148,13 +150,14 @@ export function createRunCommand(): Command {
         const model = createModelFromOptions(options);
 
         // 加载 MCP 配置
-        const mcpResult = loadMCPConfig(options.mcpConfig, process.cwd(), options.userBasePath);
+        const mcpResult = loadMCPConfig(options.mcpConfig, options.cwd || process.cwd(), options.userBasePath);
         if (mcpResult.configPath) {
           console.log(chalk.gray(`Loaded MCP config from: ${mcpResult.configPath}`));
         }
 
         const agent = new Agent({
           model,
+          cwd: options.cwd || process.cwd(),
           systemPrompt: options.system,
           temperature: options.temperature,
           maxTokens: options.maxTokens,

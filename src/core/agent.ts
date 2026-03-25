@@ -16,6 +16,7 @@ import { getAllBuiltinTools } from '../tools/builtin/index.js';
 import { SessionManager } from '../storage/session.js';
 import { DEFAULT_SYSTEM_PROMPT } from './prompts.js';
 import { MemoryManager } from '../memory/manager.js';
+import { getEnvironmentInfo, formatEnvironmentSection } from './environment.js';
 import { MCPAdapter } from '../mcp/adapter.js';
 import type { MCPClientConfig } from '../mcp/client.js';
 import { SkillRegistry, createSkillRegistry } from '../skills/registry.js';
@@ -78,7 +79,10 @@ export class Agent {
     };
 
     // 初始化 Skill 注册中心
-    this.skillRegistry = createSkillRegistry({ userBasePath: config.userBasePath });
+    this.skillRegistry = createSkillRegistry({ 
+      cwd: config.cwd,
+      userBasePath: config.userBasePath 
+    });
 
     // 初始化工具注册中心
     this.toolRegistry = new ToolRegistry();
@@ -164,6 +168,13 @@ export class Agent {
     // 注入 skill 列表
     basePrompt = basePrompt.replace('{{SKILL_LIST}}', this.skillRegistry.getFormattedList());
 
+    // 注入环境信息
+    if (this.config.includeEnvironment !== false) {
+      const cwd = this.config.cwd || process.cwd();
+      const envInfo = getEnvironmentInfo(cwd);
+      basePrompt += formatEnvironmentSection(envInfo);
+    }
+
     // 如果没有自定义提示词，返回处理后的提示词
     if (!customPrompt) {
       return basePrompt;
@@ -223,7 +234,7 @@ export class Agent {
       // 只有当还没有用户消息时才加载记忆
       // 这样可以确保记忆只被加载一次，并且是在对话开始时
       if (!hasUserMessages) {
-        const memoryManager = new MemoryManager(undefined, this.config.memoryConfig, this.config.userBasePath);
+        const memoryManager = new MemoryManager(this.config.cwd, this.config.memoryConfig, this.config.userBasePath);
         const memoryContent = memoryManager.loadMemory();
         
         if (memoryContent) {
@@ -509,7 +520,8 @@ export class Agent {
     // 创建模板处理器
     const context: SkillTemplateContext = {
       skillDir: skill.path || '',
-      sessionId: this.sessionManager.sessionId || undefined
+      sessionId: this.sessionManager.sessionId || undefined,
+      cwd: this.config.cwd
     };
     const processor = createSkillTemplateProcessor(context);
 

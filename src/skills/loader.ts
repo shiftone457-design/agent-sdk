@@ -7,8 +7,8 @@ import { parseSkillMd, inferMetadataFromPath } from './parser.js';
  * Skill 加载器配置
  */
 export interface SkillLoaderConfig {
-  /** 基础路径 */
-  basePath?: string;
+  /** 工作目录 */
+  cwd?: string;
   /** 用户级基础路径 */
   userBasePath?: string;
   /** 文件过滤 */
@@ -24,7 +24,7 @@ export class SkillLoader {
 
   constructor(config: SkillLoaderConfig = {}) {
     this.config = {
-      basePath: process.cwd(),
+      cwd: process.cwd(),
       ...config
     };
   }
@@ -33,7 +33,7 @@ export class SkillLoader {
    * 加载单个 Skill
    */
   async load(skillPath: string): Promise<SkillDefinition> {
-    const resolvedPath = resolve(this.config.basePath!, skillPath);
+    const resolvedPath = resolve(this.config.cwd!, skillPath);
 
     // 检查是文件还是目录
     const stat = await this.getPathType(resolvedPath);
@@ -109,7 +109,7 @@ export class SkillLoader {
    * 加载目录下的所有 Skills
    */
   async loadAll(dirPath: string): Promise<SkillDefinition[]> {
-    const resolvedPath = resolve(this.config.basePath!, dirPath);
+    const resolvedPath = resolve(this.config.cwd!, dirPath);
     const skills: SkillDefinition[] = [];
 
     try {
