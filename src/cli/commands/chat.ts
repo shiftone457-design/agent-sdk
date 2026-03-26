@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { createModel, type ModelProvider } from '../../models/index.js';
 import { Agent } from '../../core/agent.js';
-import { formatUsage, createStreamFormatter } from '../utils/output.js';
+import { formatUsage, formatSessionUsage, createStreamFormatter } from '../utils/output.js';
 import type { CLIConfig } from '../../core/types.js';
 import { loadMCPConfig } from '../../config/index.js';
 
@@ -112,6 +112,7 @@ export function createChatCommand(): Command {
             if (result.usage) {
               console.log(`\n${formatUsage(result.usage)}`);
             }
+            console.log(`\n${formatSessionUsage(agent.getSessionUsage())}`);
           } else {
             const formatter = createStreamFormatter();
             for await (const event of agent.stream(input, { sessionId: options.session })) {
@@ -120,6 +121,7 @@ export function createChatCommand(): Command {
             }
             const tail = formatter.finalize();
             if (tail) process.stdout.write(tail);
+            console.log(`\n${formatSessionUsage(agent.getSessionUsage())}`);
           }
 
           console.log('\n');

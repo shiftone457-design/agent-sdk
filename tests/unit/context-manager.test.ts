@@ -16,33 +16,32 @@ const createMockModel = (capabilities?: { contextLength: number; maxOutputTokens
 
 describe('ContextManager', () => {
   describe('shouldCompress', () => {
-    it('should return false when usage is below threshold', () => {
+    it('should return false when contextTokens is below threshold', () => {
       const model = createMockModel({ contextLength: 10_000, maxOutputTokens: 2_000 });
       const manager = new ContextManager(model);
 
       const usage: SessionTokenUsage = {
-        inputTokens: 1_000,
+        contextTokens: 1_000,
         outputTokens: 500,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
         totalTokens: 1_500
       };
 
-      // usable = 10_000 - 2_000 - 20_000 = -12_000 (but reserved is capped to maxOutputTokens)
       // usable = 10_000 - 2_000 - 2_000 = 6_000
       expect(manager.shouldCompress(usage)).toBe(false);
     });
 
-    it('should return true when usage exceeds usable', () => {
+    it('should return true when contextTokens exceeds usable', () => {
       const model = createMockModel({ contextLength: 10_000, maxOutputTokens: 2_000 });
       const manager = new ContextManager(model);
 
       const usage: SessionTokenUsage = {
-        inputTokens: 5_000,
+        contextTokens: 7_000,  // 当前上下文大小超过 usable
         outputTokens: 2_000,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
-        totalTokens: 7_000
+        totalTokens: 9_000
       };
 
       // usable = 10_000 - 2_000 - 2_000 = 6_000
@@ -50,34 +49,35 @@ describe('ContextManager', () => {
       expect(manager.shouldCompress(usage)).toBe(true);
     });
 
-    it('should use totalTokens when available', () => {
+    it('should only use contextTokens for compression decision', () => {
       const model = createMockModel({ contextLength: 10_000, maxOutputTokens: 2_000 });
       const manager = new ContextManager(model);
 
+      // 即使 totalTokens 很大，只要 contextTokens 小于 usable 就不压缩
       const usage: SessionTokenUsage = {
-        inputTokens: 1_000,
-        outputTokens: 500,
+        contextTokens: 1_000,  // 当前上下文小
+        outputTokens: 10_000,  // 累计输出大
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
-        totalTokens: 7_000 // totalTokens takes precedence
+        totalTokens: 11_000    // 累计总量大
       };
 
-      expect(manager.shouldCompress(usage)).toBe(true);
+      // usable = 6_000, contextTokens = 1_000 < 6_000
+      expect(manager.shouldCompress(usage)).toBe(false);
     });
 
-    it('should calculate from components when totalTokens is 0', () => {
+    it('should return true when contextTokens exactly equals usable', () => {
       const model = createMockModel({ contextLength: 10_000, maxOutputTokens: 2_000 });
       const manager = new ContextManager(model);
 
       const usage: SessionTokenUsage = {
-        inputTokens: 5_000,
-        outputTokens: 1_500,
+        contextTokens: 6_000,  // 等于 usable
+        outputTokens: 1_000,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
-        totalTokens: 0
+        totalTokens: 7_000
       };
 
-      // count = 5_000 + 1_500 + 0 = 6_500
       expect(manager.shouldCompress(usage)).toBe(true);
     });
   });
@@ -113,7 +113,7 @@ describe('ContextManager', () => {
 
       const resetUsage = manager.resetUsage();
 
-      expect(resetUsage.inputTokens).toBe(0);
+      expect(resetUsage.contextTokens).toBe(0);
       expect(resetUsage.outputTokens).toBe(0);
       expect(resetUsage.cacheReadTokens).toBe(0);
       expect(resetUsage.cacheWriteTokens).toBe(0);
@@ -174,7 +174,7 @@ describe('ContextManager', () => {
       const manager = new ContextManager(model);
 
       const usage: SessionTokenUsage = {
-        inputTokens: 3_000,
+        contextTokens: 3_000,  // 当前上下文大小
         outputTokens: 1_000,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
@@ -183,7 +183,7 @@ describe('ContextManager', () => {
 
       const status = manager.getStatus(usage);
 
-      expect(status.used).toBe(4_000);
+      expect(status.used).toBe(3_000);  // 使用 contextTokens
       expect(status.usable).toBe(6_000); // 10_000 - 2_000 - 2_000
       expect(status.needsCompaction).toBe(false);
       expect(status.compressCount).toBe(0);
@@ -194,11 +194,11 @@ describe('ContextManager', () => {
       const manager = new ContextManager(model);
 
       const usage: SessionTokenUsage = {
-        inputTokens: 5_000,
+        contextTokens: 7_000,  // 超过 usable
         outputTokens: 2_000,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
-        totalTokens: 7_000
+        totalTokens: 9_000
       };
 
       const status = manager.getStatus(usage);

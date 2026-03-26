@@ -40,7 +40,7 @@ export class ContextManager {
   constructor(model: ModelAdapter, options: ContextManagerConfig = {}) {
     // 从模型 capabilities 获取上下文长度
     const contextLength = options.contextLength ?? model.capabilities?.contextLength ?? 128_000;
-    const maxOutputTokens = options.maxOutputTokens ?? model.capabilities?.maxOutputTokens ?? 4_096;
+    const maxOutputTokens = options.maxOutputTokens ?? model.capabilities?.maxOutputTokens ?? 32_768;
 
     this._contextLength = contextLength;
     this._maxOutputTokens = maxOutputTokens;
@@ -64,16 +64,13 @@ export class ContextManager {
   /**
    * 判断是否需要压缩
    *
-   * 完全基于 API 返回的实际 token 数，不做本地估算
+   * 使用当前上下文大小 (contextTokens) 判断，而非累计值
    *
-   * @param usage 累计 token 使用量 (从 API 响应获取)
+   * @param usage 会话 token 使用量
    */
   shouldCompress(usage: SessionTokenUsage): boolean {
-    // 使用 totalTokens，或计算 input + output + cache
-    const count = usage.totalTokens ||
-      (usage.inputTokens + usage.outputTokens + usage.cacheReadTokens);
-
-    return count >= this.usable;
+    // 使用 contextTokens (当前上下文大小)
+    return usage.contextTokens >= this.usable;
   }
 
   /**
@@ -164,13 +161,10 @@ export class ContextManager {
    * 获取上下文状态
    */
   getStatus(usage: SessionTokenUsage): ContextStatus {
-    const count = usage.totalTokens ||
-      (usage.inputTokens + usage.outputTokens + usage.cacheReadTokens);
-
     return {
-      used: count,
+      used: usage.contextTokens,
       usable: this.usable,
-      needsCompaction: count >= this.usable,
+      needsCompaction: usage.contextTokens >= this.usable,
       compressCount: this.compressCount,
     };
   }
@@ -180,7 +174,7 @@ export class ContextManager {
    */
   resetUsage(): SessionTokenUsage {
     return {
-      inputTokens: 0,
+      contextTokens: 0,
       outputTokens: 0,
       cacheReadTokens: 0,
       cacheWriteTokens: 0,

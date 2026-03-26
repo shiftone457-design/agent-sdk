@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import type { StreamEvent, TokenUsage } from '../../core/types.js';
+import type { StreamEvent, TokenUsage, SessionTokenUsage } from '../../core/types.js';
 
 /**
  * 输出格式化配置
@@ -164,6 +164,25 @@ export function formatUsage(usage: TokenUsage, config: OutputConfig = {}): strin
   const { color = true } = config;
 
   const text = `📊 Tokens: ${usage.promptTokens} in, ${usage.completionTokens} out (${usage.totalTokens} total)`;
+
+  return color ? chalk.gray(text) : text;
+}
+
+/**
+ * 格式化会话 Token 使用统计
+ *
+ * 区分：
+ * - Context: 当前上下文大小
+ * - Output: 累计输出
+ * - Total: 累计消耗
+ */
+export function formatSessionUsage(usage: SessionTokenUsage, config: OutputConfig = {}): string {
+  const { color = true } = config;
+
+  let text = `📊 Context: ${usage.contextTokens} | Output: ${usage.outputTokens} | Total: ${usage.totalTokens}`;
+  if (usage.cacheReadTokens > 0 || usage.cacheWriteTokens > 0) {
+    text += ` | Cache: ${usage.cacheReadTokens}r/${usage.cacheWriteTokens}w`;
+  }
 
   return color ? chalk.gray(text) : text;
 }

@@ -144,12 +144,15 @@ export interface TokenUsage {
 }
 
 /**
- * 会话累计 Token 使用统计
- * 从 API 响应中累计，不做本地估算
+ * 会话 Token 使用统计
+ *
+ * 关键区分：
+ * - contextTokens: 当前上下文大小 (最近一次 API 返回的 input_tokens)
+ * - outputTokens/totalTokens: 累计消耗
  */
 export interface SessionTokenUsage {
-  /** 累计输入 tokens */
-  inputTokens: number;
+  /** 当前上下文 tokens (最近一次 API 返回的 input_tokens，用于压缩判断) */
+  contextTokens: number;
   /** 累计输出 tokens */
   outputTokens: number;
   /** 累计缓存读取 tokens */

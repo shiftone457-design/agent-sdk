@@ -64,9 +64,11 @@ export class Agent {
   private initPromise: Promise<void>;
   private contextManager: ContextManager | null = null;
 
-  // 累计 token 使用量 (从 API 响应获取)
+  // Token 使用量统计
+  // contextTokens: 当前上下文大小 (用于压缩判断)
+  // outputTokens/totalTokens: 累计消耗
   private sessionUsage: SessionTokenUsage = {
-    inputTokens: 0,
+    contextTokens: 0,
     outputTokens: 0,
     cacheReadTokens: 0,
     cacheWriteTokens: 0,
@@ -321,11 +323,18 @@ export class Agent {
 
             if (event.type === 'metadata' && event.data?.usage) {
               totalUsage = this.mergeUsage(totalUsage, event.data.usage as TokenUsage);
-              // 累计 session token 使用量
+              // 更新 session token 统计
               const usage = event.data.usage as TokenUsage;
-              this.sessionUsage.inputTokens += usage.promptTokens;
+              // 当前上下文大小 = 最近一次 API 返回的 input_tokens
+              // 注意：message_delta 事件的 promptTokens 为 0，只有 message_start 有值
+              // 所以只在 promptTokens > 0 时更新
+              if (usage.promptTokens > 0) {
+                this.sessionUsage.contextTokens = usage.promptTokens;
+              }
+              // 累计输出 tokens
               this.sessionUsage.outputTokens += usage.completionTokens;
-              this.sessionUsage.totalTokens += usage.totalTokens;
+              // 注意：不再累加 totalTokens，因为 API 返回的 totalTokens 包含完整上下文
+              // totalTokens 在 getSessionUsage() 中实时计算
             }
           }
         }
@@ -754,6 +763,17 @@ export class Agent {
     }
 
     return this.contextManager.getStatus(this.sessionUsage);
+  }
+
+  /**
+   * 获取会话累计 Token 使用量
+   */
+  getSessionUsage(): SessionTokenUsage {
+    // 实时计算 totalTokens = 当前上下文 + 累计输出
+    return {
+      ...this.sessionUsage,
+      totalTokens: this.sessionUsage.contextTokens + this.sessionUsage.outputTokens
+    };
   }
 
   /**
