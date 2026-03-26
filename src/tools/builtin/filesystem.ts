@@ -162,7 +162,14 @@ export const listDirectoryTool = createTool({
     'Lists files and subdirectories directly within a specified path. Use this to explore directory structures and understand the layout of a codebase. Supports ignore patterns to exclude unwanted entries.',
   parameters: z.object({
     path: z.string().default('.').describe('The absolute directory path to list'),
-    recursive: z.coerce.boolean().default(false).describe('Whether to list recursively'),
+    recursive: z
+      .preprocess((val) => {
+        if (typeof val === 'string') {
+          return val.toLowerCase() === 'true';
+        }
+        return val;
+      }, z.boolean().default(false))
+      .describe('Whether to list recursively'),
     ignore: z
       .array(z.string())
       .optional()
