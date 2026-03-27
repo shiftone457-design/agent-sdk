@@ -17,6 +17,7 @@ function addModelOptions(cmd: Command): Command {
     .option('-t, --temperature <temp>', 'Temperature', parseFloat)
     .option('--max-tokens <tokens>', 'Max tokens', (v) => parseInt(v, 10))
     .option('--no-stream', 'Disable streaming')
+    .option('-v, --verbose', 'Show full tool calls and results')
     .option('--mcp-config <path>', 'Path to MCP config file (mcp_config.json)')
     .option('--user-base-path <path>', 'User base path (default: ~)')
     .option('--cwd <path>', 'Working directory (default: current directory)');
@@ -114,7 +115,7 @@ export function createChatCommand(): Command {
             }
             console.log(`\n${formatSessionUsage(agent.getSessionUsage())}`);
           } else {
-            const formatter = createStreamFormatter();
+            const formatter = createStreamFormatter({ verbose: options.verbose });
             for await (const event of agent.stream(input, { sessionId: options.session })) {
               const output = formatter.format(event);
               if (output) process.stdout.write(output);
@@ -175,7 +176,7 @@ export function createRunCommand(): Command {
             const result = await agent.run(prompt, { sessionId: options.session });
             console.log(JSON.stringify(result, null, 2));
           } else if (options.stream !== false) {
-            const formatter = createStreamFormatter();
+            const formatter = createStreamFormatter({ verbose: options.verbose });
             for await (const event of agent.stream(prompt, { sessionId: options.session })) {
               const output = formatter.format(event);
               if (output) process.stdout.write(output);

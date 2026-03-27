@@ -82,7 +82,8 @@ export interface StreamFormatter {
   finalize(): string;
 }
 
-export function createStreamFormatter(): StreamFormatter {
+export function createStreamFormatter(config: OutputConfig = {}): StreamFormatter {
+  const { verbose = false } = config;
   let lastEventType: string | null = null;
   let isFirstThinking = true;
   const toolCalls = new Map<string, { name: string; arguments: unknown }>();
@@ -122,17 +123,29 @@ export function createStreamFormatter(): StreamFormatter {
         case 'tool_result': {
           const tc = toolCalls.get(event.toolCallId);
           const name = tc?.name ?? 'tool';
-          const argsStr = tc?.arguments ? `(${truncate(JSON.stringify(tc.arguments), 80)})` : '()';
-          const resultStr = truncate(event.result, 120);
-          output += chalk.yellow(`\n🔧 ${name}`) + chalk.gray(argsStr) + chalk.green(` ✓ ${resultStr}`);
+          if (verbose) {
+            const argsStr = tc?.arguments ? ` ${JSON.stringify(tc.arguments, null, 2)}` : '';
+            output += chalk.yellow(`\n🔧 ${name}`) + chalk.gray(argsStr);
+            output += chalk.green(`\n✓ Result:\n${event.result}\n`);
+          } else {
+            const argsStr = tc?.arguments ? `(${truncate(JSON.stringify(tc.arguments), 80)})` : '()';
+            const resultStr = truncate(event.result, 120);
+            output += chalk.yellow(`\n🔧 ${name}`) + chalk.gray(argsStr) + chalk.green(` ✓ ${resultStr}`);
+          }
           break;
         }
 
         case 'tool_error': {
           const tc = toolCalls.get(event.toolCallId);
           const name = tc?.name ?? 'tool';
-          const argsStr = tc?.arguments ? `(${truncate(JSON.stringify(tc.arguments), 80)})` : '()';
-          output += chalk.yellow(`\n🔧 ${name}`) + chalk.gray(argsStr) + chalk.red(` ✗ ${event.error.message}`);
+          if (verbose) {
+            const argsStr = tc?.arguments ? ` ${JSON.stringify(tc.arguments, null, 2)}` : '';
+            output += chalk.yellow(`\n🔧 ${name}`) + chalk.gray(argsStr);
+            output += chalk.red(`\n✗ Error:\n${event.error.message}\n`);
+          } else {
+            const argsStr = tc?.arguments ? `(${truncate(JSON.stringify(tc.arguments), 80)})` : '()';
+            output += chalk.yellow(`\n🔧 ${name}`) + chalk.gray(argsStr) + chalk.red(` ✗ ${event.error.message}`);
+          }
           break;
         }
 
