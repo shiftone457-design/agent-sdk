@@ -102,7 +102,11 @@ export class StreamTransformer {
 
       case 'thinking':
         if (chunk.content) {
-          events.push({ type: 'thinking', content: chunk.content });
+          events.push({ 
+            type: 'thinking', 
+            content: chunk.content,
+            signature: chunk.signature
+          });
         }
         break;
 

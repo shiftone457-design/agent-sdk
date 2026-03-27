@@ -74,6 +74,7 @@ export class AnthropicAdapter extends BaseModelAdapter {
     const decoder = new TextDecoder();
     let buffer = '';
     let currentToolCall: { id: string; name: string; input: string } | null = null;
+    let currentThinkingBlock: { signature?: string } | null = null;
 
     try {
       while (true) {
@@ -110,6 +111,10 @@ export class AnthropicAdapter extends BaseModelAdapter {
                     content: data.content_block.name,
                     toolCallId: data.content_block.id
                   };
+                } else if (data.content_block?.type === 'thinking') {
+                  currentThinkingBlock = {
+                    signature: data.content_block.signature
+                  };
                 }
                 break;
 
@@ -117,7 +122,11 @@ export class AnthropicAdapter extends BaseModelAdapter {
                 if (data.delta?.type === 'text_delta') {
                   yield { type: 'text', content: data.delta.text };
                 } else if (data.delta?.type === 'thinking_delta') {
-                  yield { type: 'thinking', content: data.delta.thinking };
+                  yield {
+                    type: 'thinking',
+                    content: data.delta.thinking,
+                    signature: currentThinkingBlock?.signature
+                  };
                 } else if (data.delta?.type === 'input_json_delta' && currentToolCall) {
                   currentToolCall.input += data.delta.partial_json;
                   yield {
@@ -139,6 +148,9 @@ export class AnthropicAdapter extends BaseModelAdapter {
                     }
                   };
                   currentToolCall = null;
+                }
+                if (currentThinkingBlock) {
+                  currentThinkingBlock = null;
                 }
                 break;
 
@@ -293,15 +305,10 @@ export class AnthropicAdapter extends BaseModelAdapter {
         transformed.content = [{ type: 'text', text: msg.content }];
       } else if (Array.isArray(msg.content)) {
         // 处理 ContentPart 数组
-        // 将 thinking 类型转换为文本格式（因为大多数 API 不支持 thinking 块）
         const contentParts: any[] = [];
         for (const part of msg.content) {
           if (part.type === 'thinking') {
-            // 将 thinking 内容转换为文本
-            contentParts.push({
-              type: 'text',
-              text: `<thinking>${(part as any).thinking}</thinking>`
-            });
+            contentParts.push(part);
           } else if (part.type === 'text') {
             contentParts.push({ type: 'text', text: (part as any).text });
           } else {

@@ -16,6 +16,7 @@ export interface TextContent {
 export interface ThinkingContent {
   type: 'thinking';
   thinking: string;
+  signature?: string;
 }
 
 /**
@@ -130,6 +131,7 @@ export interface StreamChunk {
   toolCallId?: string;
   error?: Error;
   metadata?: Record<string, unknown>;
+  signature?: string;
 }
 
 /**
@@ -349,7 +351,7 @@ export type StreamEvent =
   | { type: 'tool_call_end'; id: string }
   | { type: 'tool_result'; toolCallId: string; result: string }
   | { type: 'tool_error'; toolCallId: string; error: Error }
-  | { type: 'thinking'; content: string }
+  | { type: 'thinking'; content: string; signature?: string }
   | { type: 'error'; error: Error }
   | { type: 'metadata'; data: Record<string, unknown> }
   | { type: 'end'; usage?: TokenUsage; timestamp: number };
