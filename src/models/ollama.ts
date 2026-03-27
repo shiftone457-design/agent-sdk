@@ -55,7 +55,7 @@ export class OllamaAdapter extends BaseModelAdapter {
 
   async *stream(params: ModelParams): AsyncIterable<StreamChunk> {
     const body = this.buildRequestBody(params, true);
-    const response = await this.fetch('/api/chat', body);
+    const response = await this.fetch('/api/chat', body, params.signal);
 
     if (!response.ok) {
       const error = await response.text();
@@ -72,6 +72,11 @@ export class OllamaAdapter extends BaseModelAdapter {
 
     try {
       while (true) {
+        if (params.signal?.aborted) {
+          reader.cancel();
+          break;
+        }
+
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -182,13 +187,14 @@ export class OllamaAdapter extends BaseModelAdapter {
     return body;
   }
 
-  private async fetch(path: string, body: unknown): Promise<Response> {
+  private async fetch(path: string, body: unknown, signal?: AbortSignal): Promise<Response> {
     return globalThis.fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal
     });
   }
 }

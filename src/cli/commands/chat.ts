@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { createModel, type ModelProvider } from '../../models/index.js';
 import { Agent } from '../../core/agent.js';
 import { formatUsage, formatSessionUsage, createStreamFormatter } from '../utils/output.js';
+import { initKeypressListener, setKeypressHandler, clearKeypressHandler } from '../utils/keypress.js';
 import type { CLIConfig } from '../../core/types.js';
 import { loadMCPConfig } from '../../config/index.js';
 
@@ -74,6 +75,7 @@ export function createChatCommand(): Command {
         console.log(chalk.gray(`Skills: ${skills.map(s => `/${s.name}`).join(', ')}`));
       }
       console.log(chalk.gray('Type "exit" or "quit" to end the session'));
+      console.log(chalk.gray('Press ESC to interrupt streaming'));
       console.log(chalk.gray('Use /skill-name to invoke a skill\n'));
 
       const readline = await import('readline');
@@ -115,20 +117,42 @@ export function createChatCommand(): Command {
             }
             console.log(`\n${formatSessionUsage(agent.getSessionUsage())}`);
           } else {
-            const formatter = createStreamFormatter({ verbose: options.verbose });
-            for await (const event of agent.stream(input, { sessionId: options.session })) {
-              const output = formatter.format(event);
-              if (output) process.stdout.write(output);
+            const abortController = new AbortController();
+            let interrupted = false;
+
+            const cleanupKeypress = initKeypressListener();
+            setKeypressHandler({
+              onAbort: () => {
+                interrupted = true;
+                abortController.abort();
+                process.stdout.write(chalk.yellow('\n[interrupted]\n'));
+              }
+            });
+
+            try {
+              const formatter = createStreamFormatter({ verbose: options.verbose });
+              for await (const event of agent.stream(input, {
+                sessionId: options.session,
+                signal: abortController.signal
+              })) {
+                if (interrupted) break;
+                const output = formatter.format(event);
+                if (output) process.stdout.write(output);
+              }
+              if (!interrupted) {
+                const tail = formatter.finalize();
+                if (tail) process.stdout.write(tail);
+                console.log(`\n${formatSessionUsage(agent.getSessionUsage())}`);
+              }
+            } finally {
+              clearKeypressHandler();
+              cleanupKeypress();
             }
-            const tail = formatter.finalize();
-            if (tail) process.stdout.write(tail);
-            console.log(`\n${formatSessionUsage(agent.getSessionUsage())}`);
           }
 
           console.log('\n');
         }
       } finally {
-        // 清理资源
         await agent.destroy();
         rl.close();
       }

@@ -150,6 +150,10 @@ export function createStreamFormatter(config: OutputConfig = {}): StreamFormatte
         }
 
         case 'metadata':
+          if (event.data?.event === 'aborted') {
+            output += chalk.yellow('\n[interrupted]');
+            break;
+          }
           if (event.data?.usage) {
             output += `\n${formatUsage(event.data.usage as TokenUsage)}`;
           }

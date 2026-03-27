@@ -60,7 +60,7 @@ export class OpenAIAdapter extends BaseModelAdapter {
 
   async *stream(params: ModelParams): AsyncIterable<StreamChunk> {
     const body = this.buildRequestBody(params, true);
-    const response = await this.fetch('/chat/completions', body);
+    const response = await this.fetch('/chat/completions', body, params.signal);
 
     if (!response.ok) {
       const error = await response.text();
@@ -78,6 +78,11 @@ export class OpenAIAdapter extends BaseModelAdapter {
 
     try {
       while (true) {
+        if (params.signal?.aborted) {
+          reader.cancel();
+          break;
+        }
+
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -251,7 +256,7 @@ export class OpenAIAdapter extends BaseModelAdapter {
     return body;
   }
 
-  private async fetch(path: string, body: unknown): Promise<Response> {
+  private async fetch(path: string, body: unknown, signal?: AbortSignal): Promise<Response> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${this.apiKey}`
@@ -264,7 +269,8 @@ export class OpenAIAdapter extends BaseModelAdapter {
     return globalThis.fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers,
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal
     });
   }
 

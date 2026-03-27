@@ -48,6 +48,7 @@ function toMCPClientConfig(config: MCPServerConfig): MCPClientConfig {
 export interface StreamOptions {
   sessionId?: string;
   systemPrompt?: SystemPrompt;
+  signal?: AbortSignal;
 }
 
 /**
@@ -218,6 +219,8 @@ export class Agent {
    * 流式执行
    */
   async *stream(input: string, options?: StreamOptions): AsyncIterable<StreamEvent> {
+    const signal = options?.signal;
+
     // 恢复或创建会话
     if (options?.sessionId) {
       try {
@@ -287,6 +290,12 @@ export class Agent {
       };
 
       for (let iteration = 0; iteration < maxIterations; iteration++) {
+        if (signal?.aborted) {
+          yield { type: 'metadata', data: { event: 'aborted' } };
+          yield { type: 'end', usage: totalUsage, timestamp: Date.now() };
+          return;
+        }
+
         // 上下文压缩检查
         const contextEvents = await this.checkContextCompression();
         for (const event of contextEvents) {
@@ -297,17 +306,51 @@ export class Agent {
           messages: this.messages,
           tools: this.toolRegistry.getAll(),
           temperature: this.config.temperature,
-          maxTokens: this.config.maxTokens
+          maxTokens: this.config.maxTokens,
+          signal
         };
 
         const stream = this.config.model.stream(modelParams);
         let hasToolCalls = false;
         const toolCalls: ToolCall[] = [];
         let assistantContent = '';
-        let thinkingContent = '';  // 收集 thinking 内容
-        let thinkingSignature: string | undefined;  // 收集 signature
+        let thinkingContent = '';
+        let thinkingSignature: string | undefined;
 
         for await (const chunk of stream) {
+          if (signal?.aborted) {
+            if (assistantContent) {
+              const assistantMessage: Message = {
+                role: 'assistant',
+                content: assistantContent
+              };
+              if (thinkingContent) {
+                assistantMessage.content = [
+                  { type: 'thinking', thinking: thinkingContent, signature: thinkingSignature || '' },
+                  { type: 'text', text: assistantContent }
+                ];
+              }
+              this.messages.push(assistantMessage);
+            }
+
+            this.messages.push({
+              role: 'user',
+              content: '[User interrupted the response]'
+            });
+
+            await this.sessionManager.saveMessages(this.messages);
+
+            yield { 
+              type: 'metadata', 
+              data: { 
+                event: 'aborted', 
+                partialContent: assistantContent 
+              } 
+            };
+            yield { type: 'end', usage: totalUsage, timestamp: Date.now() };
+            return;
+          }
+
           const events = this.processChunk(chunk);
           for (const event of events) {
             yield event;
@@ -318,9 +361,6 @@ export class Agent {
 
             if (event.type === 'thinking') {
               thinkingContent += event.content;
-              if (event.signature && event.signature.length > 0 && !thinkingSignature) {
-                thinkingSignature = event.signature;
-              }
             }
 
             if (event.type === 'tool_call') {
@@ -335,34 +375,23 @@ export class Agent {
             if (event.type === 'metadata' && event.data?.usage) {
               const usage = event.data.usage as TokenUsage;
 
-              // 更新单次请求统计
-              // promptTokens 是当前迭代的完整上下文大小（不是增量）
-              // 只在 promptTokens > 0 时更新（message_start 事件）
               if (usage.promptTokens > 0) {
                 totalUsage.promptTokens = usage.promptTokens;
-                // contextTokens: 当前上下文大小（用于压缩判断）
                 this.sessionUsage.contextTokens = usage.promptTokens;
-                // inputTokens: 累计所有迭代的 input tokens
                 this.sessionUsage.inputTokens += usage.promptTokens;
               }
-              // completionTokens 是增量，需要累加
               totalUsage.completionTokens += usage.completionTokens;
               totalUsage.totalTokens = totalUsage.promptTokens + totalUsage.completionTokens;
-
-              // 更新 session token 统计
-              // 累计输出 tokens
               this.sessionUsage.outputTokens += usage.completionTokens;
             }
           }
         }
 
-        // 保存助手消息（包含 thinking 内容）
         const assistantMessage: Message = {
           role: 'assistant',
           content: assistantContent
         };
 
-        // 如果有 thinking 内容，使用 ContentPart 数组格式
         if (thinkingContent) {
           const contentParts: any[] = [
             { 
@@ -371,7 +400,6 @@ export class Agent {
               signature: thinkingSignature || ''
             }
           ];
-          // 只有当 text 非空时才添加
           if (assistantContent.trim()) {
             contentParts.push({ type: 'text', text: assistantContent });
           }
@@ -384,12 +412,10 @@ export class Agent {
 
         this.messages.push(assistantMessage);
 
-        // 如果没有工具调用，结束循环
         if (!hasToolCalls) {
           break;
         }
 
-        // 执行工具调用
         const toolResults = await this.executeTools(toolCalls);
 
         for (const result of toolResults) {
@@ -407,7 +433,6 @@ export class Agent {
         }
       }
 
-      // 保存会话
       await this.sessionManager.saveMessages(this.messages);
 
       yield {
@@ -421,6 +446,11 @@ export class Agent {
 
       yield { type: 'end', usage: totalUsage, timestamp: Date.now() };
     } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        yield { type: 'metadata', data: { event: 'aborted' } };
+        yield { type: 'end', timestamp: Date.now() };
+        return;
+      }
       yield { type: 'error', error: error as Error };
     }
   }

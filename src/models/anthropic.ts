@@ -59,7 +59,7 @@ export class AnthropicAdapter extends BaseModelAdapter {
 
   async *stream(params: ModelParams): AsyncIterable<StreamChunk> {
     const body = this.buildRequestBody(params, true);
-    const response = await this.fetch('/v1/messages', body);
+    const response = await this.fetch('/v1/messages', body, params.signal);
 
     if (!response.ok) {
       const error = await response.text();
@@ -78,6 +78,11 @@ export class AnthropicAdapter extends BaseModelAdapter {
 
     try {
       while (true) {
+        if (params.signal?.aborted) {
+          reader.cancel();
+          break;
+        }
+
         const { done, value } = await reader.read();
         if (done) break;
 
@@ -113,6 +118,11 @@ export class AnthropicAdapter extends BaseModelAdapter {
                   };
                 } else if (data.content_block?.type === 'thinking') {
                   currentThinkingBlock = {
+                    signature: data.content_block.signature
+                  };
+                  yield {
+                    type: 'thinking',
+                    content: data.content_block.thinking,
                     signature: data.content_block.signature
                   };
                 }
@@ -349,7 +359,7 @@ export class AnthropicAdapter extends BaseModelAdapter {
     });
   }
 
-  private async fetch(path: string, body: unknown): Promise<Response> {
+  private async fetch(path: string, body: unknown, signal?: AbortSignal): Promise<Response> {
     return globalThis.fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers: {
@@ -357,7 +367,8 @@ export class AnthropicAdapter extends BaseModelAdapter {
         'x-api-key': this.apiKey,
         'anthropic-version': this.version
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal
     });
   }
 

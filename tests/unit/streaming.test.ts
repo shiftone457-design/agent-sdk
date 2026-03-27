@@ -117,4 +117,61 @@ describe('AgentStream', () => {
     stream.abort();
     expect(stream.signal.aborted).toBe(true);
   });
+
+  it('should stop iteration immediately when aborted', async () => {
+    stream.push({ type: 'text_delta', content: 'First' });
+    
+    const iterator = stream[Symbol.asyncIterator]();
+    
+    const first = await iterator.next();
+    expect(first.done).toBe(false);
+    expect(first.value.type).toBe('text_delta');
+    
+    stream.abort();
+    
+    const second = await iterator.next();
+    expect(second.done).toBe(true);
+    expect(second.value).toBeUndefined();
+  });
+
+  it('should not accept events after abort', async () => {
+    stream.push({ type: 'text_delta', content: 'First' });
+    
+    const iterator = stream[Symbol.asyncIterator]();
+    const first = await iterator.next();
+    expect(first.value.type).toBe('text_delta');
+    
+    stream.abort();
+    stream.push({ type: 'text_delta', content: 'Second' });
+    
+    const second = await iterator.next();
+    expect(second.done).toBe(true);
+  });
+
+  it('should abort while waiting for events', async () => {
+    const events: any[] = [];
+    let resolveWait: () => void;
+    
+    const waitPromise = new Promise<void>(resolve => { resolveWait = resolve; });
+    
+    const consumePromise = (async () => {
+      for await (const event of stream) {
+        events.push(event);
+        if (events.length === 1) {
+          await waitPromise;
+        }
+      }
+    })();
+    
+    stream.push({ type: 'text_delta', content: 'First' });
+    
+    await new Promise(resolve => setTimeout(resolve, 10));
+    
+    stream.abort();
+    resolveWait!();
+    
+    await consumePromise;
+    
+    expect(events).toHaveLength(1);
+  });
 });
