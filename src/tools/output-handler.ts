@@ -12,8 +12,8 @@ export const OUTPUT_CONFIG = {
   /** 保存到文件的最大大小 */
   maxStorageSize: 10_000_000,
   /** 摘要显示的行数 */
-  summaryHeadLines: 20,
-  summaryTailLines: 20,
+  summaryHeadLines: 100,
+  summaryTailLines: 100,
   /** 智能截断保留的行数 */
   truncateHeadLines: 500,
   truncateTailLines: 500,

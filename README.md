@@ -427,15 +427,17 @@ agent-sdk chat [options]
 选项:
   -m, --model <model>      模型提供商 (openai, anthropic, ollama)
   -k, --api-key <key>      API Key
-  -b, --baseUrl <url>      基础 URL
-  -n, --modelName <name>   模型名称
+  -u, --base-url <url>     基础 URL
+  -M, --model-name <name>  模型名称
   -t, --temperature <num>  温度 (0-2)
-  -M, --maxTokens <num>    最大 Token 数
+  --max-tokens <num>       最大 Token 数
   -s, --session <id>       会话 ID
-  -o, --output <format>    输出格式 (text, json, markdown)
-  --stream                 流式输出
-  --verbose                详细输出
+  -S, --system <prompt>    系统提示词
+  --no-stream              禁用流式输出
+  -v, --verbose            显示完整的工具调用参数和结果（调试模式）
   --mcp-config <path>      MCP 配置文件路径
+  --user-base-path <path>  用户基础路径 (默认: ~)
+  --cwd <path>             工作目录 (默认: 当前目录)
 ```
 
 #### run
@@ -448,8 +450,8 @@ agent-sdk run <prompt> [options]
 选项:
   -m, --model <model>      模型提供商
   -k, --api-key <key>      API Key
-  -f, --file <path>        从文件读取输入
-  -F, --files <paths...>   包含多个文件
+  -o, --output <format>    输出格式 (text, json)
+  -v, --verbose            显示完整的工具调用参数和结果（调试模式）
   (其他选项同 chat)
 ```
 
