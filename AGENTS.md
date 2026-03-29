@@ -4,7 +4,7 @@ This file provides instructions for AI coding agents working in this repository.
 
 ## Project Overview
 
-Agent SDK is a TypeScript library for building AI agents with multi-model support, MCP integration, skill system, and streaming output.
+Agent SDK is a TypeScript library for building AI agents with multi-model support (`createModel` / per-provider factories), MCP integration (`MCPClient`, `MCPAdapter`, optional `mcp_config.json`), skill system, long-term memory via `MemoryManager`, streaming helpers under `src/streaming/`, and JSONL or in-memory session storage.
 
 ## Build/Lint/Test Commands
 
@@ -12,13 +12,16 @@ Agent SDK is a TypeScript library for building AI agents with multi-model suppor
 # Install dependencies
 pnpm install
 
-# Build the project (ESM + CJS + type declarations)
+# Build the project (ESM + CJS + type declarations) via tsup
 pnpm build
+
+# Watch mode rebuild during development
+pnpm dev
 
 # Type checking (no emit)
 pnpm lint
 
-# Run all tests
+# Run all tests once
 pnpm test:run
 
 # Run tests in watch mode
@@ -33,6 +36,8 @@ pnpm vitest run -t "should register a tool"
 # Clean build artifacts
 pnpm clean
 ```
+
+Requires Node.js >= 18.
 
 ## Code Style Guidelines
 
@@ -54,6 +59,7 @@ import type { ModelAdapter, ToolDefinition } from '../core/types.js';
 ### File Structure
 
 Each module should follow this pattern:
+
 ```
 src/module/
 ├── index.ts        # Re-exports (barrel file)
@@ -92,10 +98,11 @@ export * from './types.js';
 
 ```typescript
 // Async functions that return streams use AsyncIterable
-async *stream(params: ModelParams): AsyncIterable<StreamChunk>
+stream(params: ModelParams): AsyncIterable<StreamChunk>
 
 // Factory functions use create* prefix
 export function createTool(config: ToolConfig): ToolDefinition
+export function createModel(config: CreateModelConfig): ModelAdapter
 
 // Static methods for default instances
 export function createAgent(config: AgentConfig): Agent
@@ -124,14 +131,14 @@ if (!this.apiKey) {
 ### Zod Schemas
 
 ```typescript
-// Use Zod for tool parameter validation
+// Use Zod for tool parameter validation (names should match built-in style, e.g. Read / Write)
 export const readFileTool = createTool({
-  name: 'read_file',
+  name: 'Read',
   description: 'Read the contents of a file',
   parameters: z.object({
-    path: z.string().describe('The path to the file to read')
+    file_path: z.string().describe('Absolute path to the file to read')
   }),
-  handler: async ({ path }) => { ... }
+  handler: async ({ file_path }) => { ... }
 });
 ```
 
@@ -166,15 +173,17 @@ describe('FeatureName', () => {
 
 ## Architecture Patterns
 
-1. **Factory Functions**: Use `create*` pattern for complex objects
+1. **Factory Functions**: Use `create*` pattern for complex objects (`createTool`, `createModel`, `createMCPAdapter`, etc.)
 2. **Interface Segregation**: Keep interfaces focused and composable
 3. **Async Iterables**: Use `AsyncIterable<T>` for streaming operations
-4. **Adapter Pattern**: Model adapters implement `ModelAdapter` interface
+4. **Adapter Pattern**: Model adapters implement `ModelAdapter`; MCP uses `MCPAdapter` / `MCPClient`
 5. **Registry Pattern**: Central registries for tools and skills
+6. **Memory**: `MemoryManager` loads optional long-term instructions from CLAUDE.md paths; distinct from session `SessionManager` storage
 
 ## Module Exports
 
 Each module's `index.ts` should:
+
 ```typescript
 // Export classes and functions
 export { ToolRegistry } from './registry.js';
@@ -183,6 +192,8 @@ export { createTool } from './registry.js';
 // Export types separately
 export type { ToolConfig, ToolResult } from './types.js';
 ```
+
+The root `src/index.ts` is the main public API; `package.json` also exposes `agent-sdk/models` and `agent-sdk/tools`.
 
 ## Commit Messages
 

@@ -402,7 +402,7 @@ npx agent-sdk run "List files in current directory" --model openai
 
 # 工具管理
 npx agent-sdk tools list
-npx agent-sdk tools info read_file
+npx agent-sdk tools info Read
 
 # 会话管理
 npx agent-sdk sessions list
@@ -860,51 +860,50 @@ agent-sdk/
 
 ## Built-in Tools
 
-SDK 提供以下内置工具：
+SDK 提供以下内置工具（名称与 `ToolDefinition.name` 一致，供 CLI `tools info <name>` 使用）：
 
 ### 文件系统 (filesystem)
 | Tool | Description | Dangerous |
 |------|-------------|-----------|
-| `read_file` | Read file contents | ❌ |
-| `write_file` | Write to a file | ✅ |
-| `list_files` | List directory contents | ❌ |
-| `delete_file` | Delete a file | ✅ |
-| `file_exists` | Check if file exists | ❌ |
+| `Read` | Read file contents (line-numbered, offset/limit) | ❌ |
+| `Write` | Create or overwrite a file | ❌ |
+| `Edit` | Exact string replace in a file | ❌ |
+| `Glob` | Find files by glob pattern | ❌ |
 
 ### Shell 命令 (shell)
 | Tool | Description | Dangerous |
 |------|-------------|-----------|
-| `execute_command` | Run shell command | ✅ |
+| `Bash` | Run shell command | ✅ |
 
 ### 搜索 (grep)
 | Tool | Description | Dangerous |
 |------|-------------|-----------|
-| `grep_search` | Search for pattern in files | ❌ |
+| `Grep` | Ripgrep-based content search | ❌ |
 
 ### Web 访问 (web)
 | Tool | Description | Dangerous |
 |------|-------------|-----------|
-| `http_request` | Make HTTP request | ❌ |
-| `fetch_webpage` | Fetch webpage content | ❌ |
-| `download_file` | Download a file | ❌ |
+| `WebFetch` | Fetch URL and return readable markdown | ❌ |
+| `WebSearch` | Web search (needs custom handler; default not configured) | ❌ |
 
-### 规划与思考 (planning)
+### 任务列表 (task)
 | Tool | Description | Dangerous |
 |------|-------------|-----------|
-| `plan_task` | Create a task plan | ❌ |
-| `think` | Record thinking process | ❌ |
+| `TaskCreate` | Create a session task | ❌ |
+| `TaskUpdate` | Update or complete a task | ❌ |
+| `TaskList` | List tasks | ❌ |
 
 ### 交互 (interaction)
 | Tool | Description | Dangerous |
 |------|-------------|-----------|
-| `ask_question` | Ask user for input | ❌ |
+| `AskUserQuestion` | Ask the user structured questions | ❌ |
 
-### Skill 激活 (skill-activation)
+### Skill (skill-activation)
 | Tool | Description | Dangerous |
 |------|-------------|-----------|
-| `activate_skill` | Load and activate a skill | ❌ |
+| `Skill` | Invoke a registered skill by name | ❌ |
 
-> **Dangerous** 标记表示该工具可能修改系统或执行危险操作，使用时需要谨慎。
+> **Dangerous** 对应源码中的 `isDangerous`；当前仅 **Bash** 为 `true`。`getSafeBuiltinTools` 会排除此类工具。
 
 ## Module Exports
 
