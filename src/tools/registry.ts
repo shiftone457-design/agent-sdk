@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { ToolDefinition, ToolResult, ToolSchema } from '../core/types.js';
 import { zodToJsonSchema } from '../models/base.js';
 import { OutputHandler, createOutputHandler } from './output-handler.js';
+import type { HookManager } from './hooks/manager.js';
+import type { HookContext } from './hooks/types.js';
 
 /**
  * Tool 注册中心配置
@@ -13,6 +15,12 @@ export interface ToolRegistryConfig {
   enableOutputHandler?: boolean;
 }
 
+/** 工具执行选项（Hook 上下文等） */
+export interface ToolExecuteOptions {
+  toolCallId?: string;
+  projectDir?: string;
+}
+
 /**
  * Tool 注册中心
  */
@@ -20,12 +28,39 @@ export class ToolRegistry {
   private tools: Map<string, ToolDefinition> = new Map();
   private categories: Map<string, Set<string>> = new Map();
   private outputHandler: OutputHandler | null;
+  private hookManager: HookManager | null = null;
 
   constructor(config?: ToolRegistryConfig) {
     const enableOutputHandler = config?.enableOutputHandler !== false;
     this.outputHandler = enableOutputHandler
       ? createOutputHandler(config?.userBasePath)
       : null;
+  }
+
+  setHookManager(manager: HookManager | null): void {
+    this.hookManager = manager;
+  }
+
+  getHookManager(): HookManager | null {
+    return this.hookManager;
+  }
+
+  private buildHookContext(
+    event: HookContext['eventType'],
+    name: string,
+    toolInput: Record<string, unknown>,
+    options: ToolExecuteOptions | undefined,
+    extra: Partial<HookContext> = {}
+  ): HookContext {
+    return {
+      eventType: event,
+      toolName: name,
+      toolInput,
+      timestamp: Date.now(),
+      projectDir: options?.projectDir,
+      toolCallId: options?.toolCallId,
+      ...extra
+    };
   }
 
   /**
@@ -92,40 +127,113 @@ export class ToolRegistry {
   /**
    * 执行工具
    */
-  async execute(name: string, args: unknown): Promise<ToolResult> {
+  async execute(name: string, args: unknown, options?: ToolExecuteOptions): Promise<ToolResult> {
+    const hookMgr = this.hookManager;
+    const rawArgsObj =
+      typeof args === 'object' && args !== null ? (args as Record<string, unknown>) : {};
+
     const tool = this.tools.get(name);
     if (!tool) {
+      const ctx = this.buildHookContext('postToolUseFailure', name, rawArgsObj, options, {
+        errorMessage: `Tool "${name}" not found`,
+        failureKind: 'tool_error'
+      });
+      await hookMgr?.executePostToolUseFailure(ctx);
       return {
         content: `Tool "${name}" not found`,
         isError: true
       };
     }
 
+    let workingInput: Record<string, unknown> = rawArgsObj;
     try {
-      // 验证参数
-      const validatedArgs = tool.parameters.parse(args);
-      const result = await tool.handler(validatedArgs);
+      workingInput = tool.parameters.parse(args) as Record<string, unknown>;
 
-      // 输出处理：检查是否需要处理超长输出
+      if (hookMgr) {
+        const pre = await hookMgr.executePreToolUse(
+          this.buildHookContext('preToolUse', name, workingInput, options)
+        );
+        if (!pre.allowed) {
+          return {
+            content: pre.reason ?? 'Blocked by hook',
+            isError: true
+          };
+        }
+        try {
+          workingInput = tool.parameters.parse(pre.updatedInput ?? workingInput) as Record<
+            string,
+            unknown
+          >;
+        } catch (err) {
+          if (err instanceof z.ZodError) {
+            const msg = `Invalid arguments after hook merge for tool "${name}": ${err.errors.map(e => e.message).join(', ')}`;
+            await hookMgr.executePostToolUseFailure(
+              this.buildHookContext('postToolUseFailure', name, workingInput, options, {
+                errorMessage: msg,
+                failureKind: 'validation'
+              })
+            );
+            return { content: msg, isError: true };
+          }
+          throw err;
+        }
+      }
+
+      const handlerArgs = workingInput as Parameters<ToolDefinition['handler']>[0];
+      const result = await tool.handler(handlerArgs);
+      const toolResultRaw = result;
+
+      if (result.isError) {
+        await hookMgr?.executePostToolUseFailure(
+          this.buildHookContext('postToolUseFailure', name, workingInput, options, {
+            errorMessage: result.content,
+            failureKind: 'tool_error'
+          })
+        );
+        return result;
+      }
+
+      let finalResult = result;
       if (this.outputHandler && this.outputHandler.needsHandling(result.content)) {
-        return await this.outputHandler.handle(
+        finalResult = await this.outputHandler.handle(
           result.content,
           name,
           tool.category,
-          { args: validatedArgs }
+          { args: handlerArgs }
         );
       }
 
-      return result;
+      await hookMgr?.executePostToolUse(
+        this.buildHookContext('postToolUse', name, workingInput, options, {
+          toolResultRaw,
+          toolResultFinal: finalResult
+        })
+      );
+
+      return finalResult;
     } catch (error) {
       if (error instanceof z.ZodError) {
+        const msg = `Invalid arguments for tool "${name}": ${error.errors.map(e => e.message).join(', ')}`;
+        await hookMgr?.executePostToolUseFailure(
+          this.buildHookContext('postToolUseFailure', name, rawArgsObj, options, {
+            errorMessage: msg,
+            failureKind: 'validation'
+          })
+        );
         return {
-          content: `Invalid arguments for tool "${name}": ${error.errors.map(e => e.message).join(', ')}`,
+          content: msg,
           isError: true
         };
       }
+      const msg = `Error executing tool "${name}": ${error instanceof Error ? error.message : String(error)}`;
+      await hookMgr?.executePostToolUseFailure(
+        this.buildHookContext('postToolUseFailure', name, workingInput, options, {
+          errorMessage: msg,
+          failureKind: 'handler_throw'
+        })
+      );
       return {
-        content: `Error executing tool "${name}": ${error instanceof Error ? error.message : String(error)}`,
+        content: msg,
         isError: true
       };
     }

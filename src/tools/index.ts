@@ -1,6 +1,30 @@
 // Tools module
 export { ToolRegistry, createTool, getGlobalRegistry } from './registry.js';
+export type { ToolExecuteOptions } from './registry.js';
 export type { ToolDefinition, ToolResult, ToolSchema, ToolResultMetadata } from '../core/types.js';
+
+// Tool hooks
+export {
+  HookManager,
+  createFunctionHook,
+  matchTool,
+  buildHookEnv,
+  mergeCommandHookLayers,
+  parseHooksSettingsFile,
+  loadHooksSettingsFromProject,
+  loadHooksSettingsFromUser
+} from './hooks/index.js';
+export type {
+  HookContext,
+  HookEventType,
+  HookResult,
+  FunctionHook,
+  CommandHookConfig,
+  HookGroupConfig,
+  HooksSettings,
+  HooksSettingsFile,
+  FlatCommandHookEntry
+} from './hooks/index.js';
 
 // Output handler
 export {

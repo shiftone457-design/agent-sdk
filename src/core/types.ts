@@ -570,6 +570,14 @@ export interface AgentConfig {
 
   /** 是否注入环境信息到 system prompt，默认 true */
   includeEnvironment?: boolean;
+
+  /** 工具 Hook 管理器（与配置文件合并规则见文档） */
+  hookManager?: import('../tools/hooks/manager.js').HookManager;
+
+  /**
+   * 解析项目级 `.claude/settings.json` 的目录；设置后将在 Agent 初始化时加载 Hook 配置
+   */
+  hookConfigDir?: string;
 }
 
 /**

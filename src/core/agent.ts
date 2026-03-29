@@ -25,6 +25,7 @@ import { SkillRegistry, createSkillRegistry } from '../skills/registry.js';
 import { createSkillTemplateProcessor } from '../skills/template.js';
 import type { SkillTemplateContext } from '../skills/template.js';
 import { ContextManager } from './context-manager.js';
+import { HookManager } from '../tools/hooks/manager.js';
 
 function toMCPClientConfig(config: MCPServerConfig): MCPClientConfig {
   if (config.transport === 'http') {
@@ -64,6 +65,7 @@ export class Agent {
   private skillRegistry: SkillRegistry;
   private initPromise: Promise<void>;
   private contextManager: ContextManager | null = null;
+  private hookDiscoverPromise: Promise<void> | null = null;
 
   // Token 使用量统计
   // contextTokens: 当前上下文大小 (用于压缩判断)
@@ -103,6 +105,14 @@ export class Agent {
       this.toolRegistry.registerMany(getAllBuiltinTools(this.skillRegistry));
     }
 
+    if (config.hookManager) {
+      this.toolRegistry.setHookManager(config.hookManager);
+    } else if (config.hookConfigDir !== undefined) {
+      const hm = HookManager.create();
+      this.toolRegistry.setHookManager(hm);
+      this.hookDiscoverPromise = hm.discoverAndLoad(config.hookConfigDir);
+    }
+
     // 初始化会话管理器（存储在用户目录下）
     const storageBasePath = join(config.userBasePath || homedir(), '.claude', 'sessions');
     this.sessionManager = new SessionManager({
@@ -128,6 +138,10 @@ export class Agent {
    */
   private async initializeAsync(): Promise<void> {
     try {
+      if (this.hookDiscoverPromise) {
+        await this.hookDiscoverPromise;
+      }
+
       // 初始化 skills（默认路径 + 配置路径）
       await this.skillRegistry.initialize(
         this.config.skillConfig,
@@ -958,7 +972,10 @@ export class Agent {
   }>> {
     const results = await Promise.all(
       toolCalls.map(async (tc) => {
-        const result = await this.toolRegistry.execute(tc.name, tc.arguments);
+        const result = await this.toolRegistry.execute(tc.name, tc.arguments, {
+          toolCallId: tc.id,
+          projectDir: this.config.cwd || process.cwd()
+        });
         return {
           toolCallId: tc.id,
           content: result.isError
