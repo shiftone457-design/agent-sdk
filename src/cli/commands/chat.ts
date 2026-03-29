@@ -84,9 +84,13 @@ export function createChatCommand(): Command {
       console.log(chalk.gray('Use /skill-name to invoke a skill\n'));
 
       const readline = await import('readline');
+      // terminal: false avoids readline's raw mode + emitKeypressEvents on stdin. We toggle raw
+      // mode ourselves during streaming (ESC interrupt); mixing both causes stuck input after a turn
+      // on Windows and other TTYs (see Node internal/readline/interface close() + emitKeypressEvents).
       let rl = readline.createInterface({
         input: process.stdin,
-        output: process.stdout
+        output: process.stdout,
+        terminal: false
       });
 
       const askQuestion = (): Promise<string> => {
@@ -195,8 +199,12 @@ export function createChatCommand(): Command {
             if (releasedOuterReadline) {
               rl = readline.createInterface({
                 input: process.stdin,
-                output: process.stdout
+                output: process.stdout,
+                terminal: false
               });
+              if (process.stdin.isPaused()) {
+                process.stdin.resume();
+              }
             }
           }
         }

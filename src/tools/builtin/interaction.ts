@@ -216,6 +216,9 @@ function createTtyReadLineSession(): {
       // ignore
     }
   }
+  if (stdin.isPaused()) {
+    stdin.resume();
+  }
 
   const rl = createInterface({ input: stdin, output: process.stdout });
   return {

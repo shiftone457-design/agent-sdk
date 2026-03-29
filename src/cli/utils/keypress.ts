@@ -7,9 +7,10 @@ let isActive = false;
 let currentHandler: KeyPressHandler | null = null;
 let paused = false;
 
-const onKeypress = (key: string) => {
+const onKeypress = (chunk: string | Buffer) => {
   if (!isActive || !currentHandler) return;
 
+  const key = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
   if (key === '\x1b' || key.charCodeAt(0) === 27) {
     currentHandler.onAbort();
   }
@@ -30,7 +31,8 @@ export function initKeypressListener(): () => void {
   isActive = true;
   process.stdin.setRawMode(true);
   process.stdin.resume();
-  process.stdin.setEncoding('utf8');
+  // Do not call setEncoding on stdin: readline's emitKeypressEvents uses its own decoder; mixing
+  // string 'data' chunks with raw ESC handling breaks TTY input on some platforms after raw mode.
   process.stdin.on('data', onKeypress);
 
   return () => {
@@ -44,6 +46,10 @@ export function initKeypressListener(): () => void {
       process.stdin.setRawMode(false);
     } catch {
       // ignore
+    }
+    // Removing the last `data` listener can pause stdin; readline needs flowing mode (esp. Windows TTY).
+    if (process.stdin.isPaused()) {
+      process.stdin.resume();
     }
   };
 }
@@ -72,6 +78,9 @@ export function pauseKeypressListener(): () => void {
   } catch {
     // ignore
   }
+  if (process.stdin.isPaused()) {
+    process.stdin.resume();
+  }
 
   return () => {
     if (!paused) return;
@@ -83,5 +92,8 @@ export function pauseKeypressListener(): () => void {
       // ignore
     }
     process.stdin.on('data', onKeypress);
+    if (process.stdin.isPaused()) {
+      process.stdin.resume();
+    }
   };
 }
