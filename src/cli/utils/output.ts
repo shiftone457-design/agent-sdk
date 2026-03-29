@@ -40,13 +40,13 @@ export function formatEvent(event: StreamEvent, config: OutputConfig = {}): stri
 
     case 'tool_result':
       return color
-        ? chalk.green(`✓ Result: ${truncate(event.result, 100)}`)
-        : `✓ Result: ${truncate(event.result, 100)}`;
+        ? chalk.green(`\n✓ Result: ${truncate(event.result, 100)}`)
+        : `\n✓ Result: ${truncate(event.result, 100)}`;
 
     case 'tool_error':
       return color
-        ? chalk.red(`✗ Tool error: ${event.error.message}`)
-        : `✗ Tool error: ${event.error.message}`;
+        ? chalk.red(`\n✗ Tool error: ${event.error.message}`)
+        : `\n✗ Tool error: ${event.error.message}`;
 
     case 'thinking':
       return color
@@ -96,6 +96,8 @@ export function createStreamFormatter(config: OutputConfig = {}): StreamFormatte
   let isFirstThinking = true;
   const toolCalls = new Map<string, { name: string; arguments: unknown }>();
   let lastPrintedUsage: TokenUsage | null = null;
+  /** 工具输出后若中间插入了 metadata 等事件，lastEventType 不再是 tool_result，需靠此标志在正文/thinking 前补换行 */
+  let needsGapAfterToolBlock = false;
 
   return {
     format(event: StreamEvent): string {
@@ -105,6 +107,15 @@ export function createStreamFormatter(config: OutputConfig = {}): StreamFormatte
       if (lastEventType === 'thinking' && event.type !== 'thinking') {
         output += '\n';
         isFirstThinking = true;
+      }
+
+      // 工具块结束后与助手正文或 thinking 分段（metadata 会插在 tool_result 与 text_delta 之间，不能仅靠 lastEventType）
+      if (
+        needsGapAfterToolBlock &&
+        (event.type === 'text_delta' || event.type === 'thinking')
+      ) {
+        output += '\n';
+        needsGapAfterToolBlock = false;
       }
 
       switch (event.type) {
@@ -139,8 +150,10 @@ export function createStreamFormatter(config: OutputConfig = {}): StreamFormatte
           } else {
             const argsStr = tc?.arguments ? `(${truncate(JSON.stringify(tc.arguments), 80)})` : '()';
             const resultStr = truncate(event.result, 120);
-            output += chalk.yellow(`\n🔧 ${name}`) + chalk.gray(argsStr) + chalk.green(` ✓ ${resultStr}`);
+            output += chalk.yellow(`\n🔧 ${name}`) + chalk.gray(argsStr);
+            output += chalk.green(`\n✓ ${resultStr}`);
           }
+          needsGapAfterToolBlock = true;
           break;
         }
 
@@ -153,8 +166,10 @@ export function createStreamFormatter(config: OutputConfig = {}): StreamFormatte
             output += chalk.red(`\n✗ Error:\n${event.error.message}\n`);
           } else {
             const argsStr = tc?.arguments ? `(${truncate(JSON.stringify(tc.arguments), 80)})` : '()';
-            output += chalk.yellow(`\n🔧 ${name}`) + chalk.gray(argsStr) + chalk.red(` ✗ ${event.error.message}`);
+            output += chalk.yellow(`\n🔧 ${name}`) + chalk.gray(argsStr);
+            output += chalk.red(`\n✗ ${event.error.message}`);
           }
+          needsGapAfterToolBlock = true;
           break;
         }
 
