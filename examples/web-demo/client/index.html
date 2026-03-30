@@ -1,116 +1,220 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>agent-sdk Web Demo</title>
+    <title>Agent Studio — agent-sdk 演示</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
+    <a class="skip-link" href="#chat-log">跳到聊天内容</a>
     <div id="app">
-      <header class="header">
-        <h1>agent-sdk demo</h1>
-        <p class="sub">WebSocket + multi-model agent (keys on server only)</p>
+      <header class="app-header">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="3" y="3" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.75" />
+              <rect x="13" y="3" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.75" />
+              <rect x="3" y="13" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.75" />
+              <path
+                d="M15.5 15.5h5v5h-5v-5z"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </span>
+          <div class="brand-text">
+            <h1>Agent Studio</h1>
+            <p class="brand-sub">WebSocket · 多模型 · 密钥仅服务端</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <p id="conn-status" class="status-pill" role="status" aria-live="polite">未连接</p>
+          <button type="button" id="btn-reconnect" class="btn btn-secondary">重新连接</button>
+        </div>
       </header>
-      <div class="layout">
-        <aside class="panel settings-panel">
-          <h2>Connection</h2>
-          <p id="conn-status" class="status">Disconnected</p>
-          <button type="button" id="btn-reconnect">Reconnect</button>
 
-          <h2>Agent</h2>
-          <form id="form-config">
-            <label>
-              Provider
-              <select name="provider" id="cfg-provider">
-                <option value="ollama" selected>Ollama</option>
-                <option value="openai">OpenAI</option>
-                <option value="anthropic">Anthropic</option>
-              </select>
-            </label>
-            <label>
-              Model
-              <input name="model" id="cfg-model" type="text" value="glm-5:cloud" />
-            </label>
-            <label>
-              Temperature
-              <input name="temperature" type="number" step="0.1" min="0" max="2" value="0.7" />
-            </label>
-            <label>
-              Max tokens
-              <input name="maxTokens" type="number" min="1" value="128000" />
-            </label>
-            <label>
-              Storage
-              <select name="storage">
-                <option value="memory">memory</option>
-                <option value="jsonl">jsonl</option>
-              </select>
-            </label>
-            <label class="checkbox">
-              <input name="safeToolsOnly" type="checkbox" checked />
-              Safe tools only (no dangerous builtins + demo calculator)
-            </label>
-            <label class="checkbox">
-              <input name="memory" type="checkbox" checked />
-              Long-term memory (CLAUDE.md)
-            </label>
-            <label class="checkbox">
-              <input name="contextManagement" type="checkbox" checked />
-              Context compression
-            </label>
-            <label>
-              Cwd (skills / CLAUDE.md)
-              <input name="cwd" type="text" placeholder="default: demo-fixtures" />
-            </label>
-            <label>
-              User base path (sessions dir)
-              <input name="userBasePath" type="text" placeholder="empty = temp dir" />
-            </label>
-            <label>
-              MCP config path
-              <input name="mcpConfigPath" type="text" placeholder="demo-fixtures/mcp.demo.json" />
-            </label>
-            <button type="submit">Apply configuration</button>
+      <div class="app-shell">
+        <aside class="sidebar" aria-label="系统设置">
+          <div class="sidebar-section-head">
+            <span class="sidebar-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+                />
+              </svg>
+            </span>
+            <h2>系统设置</h2>
+          </div>
+
+          <form id="form-config" class="settings-form">
+            <fieldset class="fieldset">
+              <legend>模型与推理</legend>
+              <label>
+                提供商
+                <select name="provider" id="cfg-provider">
+                  <option value="ollama" selected>Ollama</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="anthropic">Anthropic</option>
+                </select>
+              </label>
+              <label>
+                模型 ID
+                <input name="model" id="cfg-model" type="text" value="glm-5:cloud" autocomplete="off" />
+              </label>
+              <div class="field-row">
+                <label class="field-half">
+                  温度
+                  <input name="temperature" type="number" step="0.1" min="0" max="2" value="0.7" />
+                </label>
+                <label class="field-half">
+                  最大 tokens
+                  <input name="maxTokens" type="number" min="1" value="128000" />
+                </label>
+              </div>
+              <label>
+                会话存储
+                <select name="storage">
+                  <option value="memory">memory</option>
+                  <option value="jsonl">jsonl</option>
+                </select>
+              </label>
+            </fieldset>
+
+            <fieldset class="fieldset">
+              <legend>行为与安全</legend>
+              <label class="checkbox">
+                <input name="safeToolsOnly" type="checkbox" checked />
+                <span>仅安全工具（无危险内置 + 演示计算器）</span>
+              </label>
+              <label class="checkbox">
+                <input name="memory" type="checkbox" checked />
+                <span>长期记忆（CLAUDE.md）</span>
+              </label>
+              <label class="checkbox">
+                <input name="contextManagement" type="checkbox" checked />
+                <span>上下文压缩</span>
+              </label>
+            </fieldset>
+
+            <fieldset class="fieldset">
+              <legend>路径</legend>
+              <label>
+                工作目录（技能 / CLAUDE.md）
+                <input name="cwd" type="text" placeholder="默认：demo-fixtures" autocomplete="off" />
+              </label>
+              <label>
+                用户根路径（会话目录）
+                <input name="userBasePath" type="text" placeholder="空 = 临时目录" autocomplete="off" />
+              </label>
+              <label>
+                MCP 配置路径
+                <input name="mcpConfigPath" type="text" placeholder="demo-fixtures/mcp.demo.json" autocomplete="off" />
+              </label>
+            </fieldset>
+
+            <button type="submit" class="btn btn-primary btn-block">应用配置</button>
+            <p id="cfg-warnings" class="warnings" role="alert"></p>
           </form>
-          <p id="cfg-warnings" class="warnings"></p>
 
-          <h2>Sessions</h2>
-          <p>Current: <code id="current-session">—</code></p>
-          <div class="row">
-            <button type="button" id="btn-session-new">New session</button>
-            <button type="button" id="btn-session-list">List</button>
+          <div class="sidebar-divider" role="presentation"></div>
+
+          <div class="sidebar-section-head">
+            <span class="sidebar-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75">
+                <path d="M4 7h16M4 12h16M4 17h10" />
+              </svg>
+            </span>
+            <h2>会话</h2>
+          </div>
+          <p class="session-current">当前：<code id="current-session">—</code></p>
+          <div class="row-actions">
+            <button type="button" id="btn-session-new" class="btn btn-secondary">新建</button>
+            <button type="button" id="btn-session-list" class="btn btn-secondary">列出</button>
           </div>
           <ul id="session-list" class="session-list"></ul>
         </aside>
 
-        <main class="main">
+        <main class="workspace" aria-label="聊天">
+          <div class="workspace-toolbar">
+            <span class="workspace-title">对话</span>
+            <span class="workspace-hint">在下方输入消息；流式回复与工具调用会同步显示</span>
+          </div>
           <section class="chat">
-            <div id="chat-log" class="chat-log"></div>
+            <div id="chat-log" class="chat-log" tabindex="0"></div>
             <form id="form-chat" class="chat-form">
-              <textarea id="chat-input" rows="3" placeholder="Message…"></textarea>
-              <div class="row">
-                <label class="checkbox">
-                  <input id="chat-use-run" type="checkbox" />
-                  Send <code>chat_run</code> instead of <code>chat</code> (same stream; tools shown either way)
-                </label>
-                <button type="submit" id="btn-send">Send</button>
-                <button type="button" id="btn-stop" disabled>Stop</button>
+              <div class="composer">
+                <textarea
+                  id="chat-input"
+                  rows="3"
+                  placeholder="输入消息… Enter 发送，Shift+Enter 换行"
+                  aria-label="消息内容"
+                ></textarea>
+                <div class="composer-actions">
+                  <label class="checkbox composer-opt">
+                    <input id="chat-use-run" type="checkbox" />
+                    <span>使用 <code>chat_run</code>（与 <code>chat</code> 同源流）</span>
+                  </label>
+                  <div class="composer-buttons">
+                    <button type="submit" id="btn-send" class="btn btn-primary">发送</button>
+                    <button type="button" id="btn-stop" class="btn btn-danger-outline" disabled>停止</button>
+                  </div>
+                </div>
               </div>
             </form>
           </section>
-          <section class="panel events-panel">
-            <h2>Stream events</h2>
-            <div class="event-filters">
-              <button type="button" class="filter-btn active" data-filter="all">All</button>
-              <button type="button" class="filter-btn" data-filter="text">Text</button>
-              <button type="button" class="filter-btn" data-filter="tool">Tools</button>
-              <button type="button" class="filter-btn" data-filter="other">Other</button>
-              <button type="button" id="btn-events-clear">Clear</button>
+        </main>
+
+        <aside class="inspector" aria-label="工具与调试">
+          <div class="inspector-tabs" role="tablist" aria-label="右侧面板">
+            <button type="button" class="tab-btn active" role="tab" aria-selected="true" id="tab-tools" data-tab="tools">
+              工具执行
+            </button>
+            <button type="button" class="tab-btn" role="tab" aria-selected="false" id="tab-events" data-tab="events">
+              事件流
+            </button>
+          </div>
+
+          <div
+            id="panel-tools"
+            class="tab-panel active"
+            role="tabpanel"
+            aria-labelledby="tab-tools"
+          >
+            <div class="panel-toolbar">
+              <span class="panel-toolbar-label">工具调用与结果</span>
+              <button type="button" id="btn-tool-activity-clear" class="btn btn-ghost btn-sm">清空</button>
+            </div>
+            <div id="tool-activity-log" class="tool-activity-log"></div>
+          </div>
+
+          <div
+            id="panel-events"
+            class="tab-panel"
+            role="tabpanel"
+            aria-labelledby="tab-events"
+            hidden
+          >
+            <div class="panel-toolbar">
+              <div class="event-filters">
+                <button type="button" class="filter-btn active" data-filter="all">全部</button>
+                <button type="button" class="filter-btn" data-filter="text">文本</button>
+                <button type="button" class="filter-btn" data-filter="tool">工具</button>
+                <button type="button" class="filter-btn" data-filter="other">其他</button>
+              </div>
+              <button type="button" id="btn-events-clear" class="btn btn-ghost btn-sm">清空</button>
             </div>
             <pre id="event-log" class="event-log"></pre>
-          </section>
-        </main>
+          </div>
+        </aside>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

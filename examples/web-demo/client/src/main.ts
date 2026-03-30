@@ -18,6 +18,11 @@ const btnSend = document.querySelector<HTMLButtonElement>('#btn-send')!;
 const btnStop = document.querySelector<HTMLButtonElement>('#btn-stop')!;
 const eventLog = document.querySelector<HTMLPreElement>('#event-log')!;
 const btnEventsClear = document.querySelector<HTMLButtonElement>('#btn-events-clear')!;
+const toolActivityLog = document.querySelector<HTMLDivElement>('#tool-activity-log')!;
+const btnToolActivityClear = document.querySelector<HTMLButtonElement>('#btn-tool-activity-clear')!;
+const tabButtons = document.querySelectorAll<HTMLButtonElement>('.tab-btn');
+const panelTools = document.querySelector<HTMLDivElement>('#panel-tools')!;
+const panelEvents = document.querySelector<HTMLDivElement>('#panel-events')!;
 
 let ws: WebSocket | null = null;
 let configured = false;
@@ -47,6 +52,20 @@ function setConn(text: string, ready = false): void {
   connStatus.classList.toggle('ready', ready);
 }
 
+function setActiveInspectorTab(tab: 'tools' | 'events'): void {
+  tabButtons.forEach((btn) => {
+    const isTools = btn.dataset.tab === 'tools';
+    const active = (tab === 'tools' && isTools) || (tab === 'events' && !isTools);
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  const showTools = tab === 'tools';
+  panelTools.classList.toggle('active', showTools);
+  panelTools.toggleAttribute('hidden', !showTools);
+  panelEvents.classList.toggle('active', !showTools);
+  panelEvents.toggleAttribute('hidden', showTools);
+}
+
 function resetChatUiAfterDisconnect(): void {
   activeRequestId = null;
   btnStop.disabled = true;
@@ -58,23 +77,23 @@ function connect(): void {
   ws?.close();
   configured = false;
   resetChatUiAfterDisconnect();
-  setConn('Connecting…');
+  setConn('连接中…');
   ws = new WebSocket(wsUrl());
 
   ws.addEventListener('open', () => {
     // Socket is open; agent is not ready until the server sends `ready` after `configure`.
-    setConn('Connected — handshake…', false);
+    setConn('已连接 — 握手中…', false);
     send({ type: 'hello', clientVersion: '0.1' });
   });
 
   ws.addEventListener('close', () => {
-    setConn('Disconnected');
+    setConn('未连接');
     configured = false;
     resetChatUiAfterDisconnect();
   });
 
   ws.addEventListener('error', () => {
-    setConn('WebSocket error (is the server running on :3001?)');
+    setConn('WebSocket 错误（请确认服务端 :3001 已启动）');
   });
 
   ws.addEventListener('message', (ev) => {
@@ -98,13 +117,13 @@ function handleServerMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case 'hello_ok':
       cfgWarnings.textContent = '';
-      setConn('Building agent…', false);
+      setConn('正在构建 Agent…', false);
       send(readConfigureMessage());
       return;
     case 'ready':
       configured = true;
       cfgWarnings.textContent = msg.warnings?.length ? msg.warnings.join('\n') : '';
-      setConn('Ready to chat', true);
+      setConn('就绪', true);
       if (msg.sessionId) currentSessionId = msg.sessionId;
       refreshSessionLabel();
       return;
@@ -112,7 +131,7 @@ function handleServerMessage(msg: ServerMessage): void {
       appendEventLine('error', { message: msg.message, detail: msg.detail });
       cfgWarnings.textContent = msg.message;
       if (!configured) {
-        setConn('Connected — fix settings below, then Apply configuration', false);
+        setConn('请修正左侧设置后点击「应用配置」', false);
       }
       return;
     case 'stream_event':
@@ -155,7 +174,7 @@ function ensureStreamingAssistantBubble(): HTMLElement {
   div.className = 'msg assistant';
   const role = document.createElement('div');
   role.className = 'role';
-  role.textContent = 'assistant';
+  role.textContent = '助手';
   const body = document.createElement('span');
   body.className = 'msg-body';
   div.appendChild(role);
@@ -210,7 +229,7 @@ function appendToolCallChatRow(event: Record<string, unknown>): void {
 
   const role = document.createElement('div');
   role.className = 'role';
-  role.textContent = 'tool call';
+  role.textContent = '工具调用';
 
   const title = document.createElement('div');
   title.className = 'msg-tool-title';
@@ -240,7 +259,7 @@ function appendToolResultChatRow(toolCallId: string, body: string, variant: 'res
 
   const role = document.createElement('div');
   role.className = 'role';
-  role.textContent = variant === 'error' ? 'tool error' : 'tool result';
+  role.textContent = variant === 'error' ? '工具错误' : '工具结果';
 
   const idEl = document.createElement('div');
   idEl.className = 'msg-tool-id';
@@ -257,6 +276,51 @@ function appendToolResultChatRow(toolCallId: string, body: string, variant: 'res
   chatLog.scrollTop = chatLog.scrollHeight;
 }
 
+function focusToolInspector(): void {
+  setActiveInspectorTab('tools');
+}
+
+function appendToolActivityCard(
+  kind: 'call' | 'result' | 'error',
+  title: string,
+  idLabel: string | undefined,
+  body: string
+): void {
+  const card = document.createElement('article');
+  card.className = 'tool-card';
+
+  const header = document.createElement('div');
+  header.className = 'tool-card-header';
+
+  const nameEl = document.createElement('div');
+  nameEl.className = 'tool-card-name';
+  nameEl.textContent = title;
+
+  const badge = document.createElement('span');
+  badge.className =
+    kind === 'call' ? 'tool-card-badge call' : kind === 'result' ? 'tool-card-badge result' : 'tool-card-badge error';
+  badge.textContent = kind === 'call' ? '调用' : kind === 'result' ? '结果' : '错误';
+
+  header.appendChild(nameEl);
+  header.appendChild(badge);
+  card.appendChild(header);
+
+  if (idLabel) {
+    const idEl = document.createElement('div');
+    idEl.className = 'tool-card-id';
+    idEl.textContent = idLabel;
+    card.appendChild(idEl);
+  }
+
+  const pre = document.createElement('pre');
+  pre.className = 'tool-card-pre';
+  pre.textContent = body;
+  card.appendChild(pre);
+
+  toolActivityLog.appendChild(card);
+  toolActivityLog.scrollTop = toolActivityLog.scrollHeight;
+}
+
 function handleStreamEventInChatLog(event: Record<string, unknown>): void {
   const t = event.type;
   if (t === 'tool_call_start' || t === 'tool_call_delta' || t === 'tool_call_end') {
@@ -269,6 +333,15 @@ function handleStreamEventInChatLog(event: Record<string, unknown>): void {
   if (t === 'tool_call') {
     beforeToolUiInChat();
     appendToolCallChatRow(event);
+    const name = typeof event.name === 'string' ? event.name : '(unknown tool)';
+    const id = typeof event.id === 'string' ? event.id : '';
+    appendToolActivityCard(
+      'call',
+      name,
+      id ? `id ${shortId(id)}` : undefined,
+      truncateForChatSnippet(formatToolArguments(event.arguments)) || '{}'
+    );
+    focusToolInspector();
     return;
   }
 
@@ -276,6 +349,8 @@ function handleStreamEventInChatLog(event: Record<string, unknown>): void {
     const id = typeof event.toolCallId === 'string' ? event.toolCallId : '?';
     const result = typeof event.result === 'string' ? event.result : JSON.stringify(event.result ?? '');
     appendToolResultChatRow(id, result, 'result');
+    appendToolActivityCard('result', '返回', `toolCallId ${shortId(id)}`, truncateForChatSnippet(result));
+    focusToolInspector();
     return;
   }
 
@@ -289,6 +364,8 @@ function handleStreamEventInChatLog(event: Record<string, unknown>): void {
           ? event.message
           : JSON.stringify(event);
     appendToolResultChatRow(id, msg, 'error');
+    appendToolActivityCard('error', '执行失败', `toolCallId ${shortId(id)}`, truncateForChatSnippet(msg));
+    focusToolInspector();
     return;
   }
 
@@ -300,12 +377,13 @@ function handleStreamEventInChatLog(event: Record<string, unknown>): void {
 function appendChatMessage(role: 'user' | 'assistant', text: string): void {
   const div = document.createElement('div');
   div.className = `msg ${role}`;
+  const roleLabel = role === 'user' ? '用户' : '助手';
   if (role === 'user') {
-    div.innerHTML = `<div class="role">${role}</div>${escapeHtml(text)}`;
+    div.innerHTML = `<div class="role">${roleLabel}</div>${escapeHtml(text)}`;
   } else {
     const roleEl = document.createElement('div');
     roleEl.className = 'role';
-    roleEl.textContent = role;
+    roleEl.textContent = roleLabel;
     const body = document.createElement('span');
     body.className = 'msg-body';
     body.textContent = text;
@@ -432,11 +510,11 @@ formChat.addEventListener('submit', (e) => {
   const text = chatInput.value.trim();
   if (!text) return;
   if (ws?.readyState !== WebSocket.OPEN) {
-    cfgWarnings.textContent = 'Not connected. Use Reconnect or start the server (port 3001).';
+    cfgWarnings.textContent = '未连接：请点击「重新连接」或启动服务端（端口 3001）。';
     return;
   }
   if (!configured) {
-    cfgWarnings.textContent = 'Apply agent configuration first (left panel: Apply configuration).';
+    cfgWarnings.textContent = '请先点击左侧「应用配置」完成 Agent 配置。';
     return;
   }
   chatInput.value = '';
@@ -463,6 +541,23 @@ btnStop.addEventListener('click', () => {
 
 btnEventsClear.addEventListener('click', () => {
   eventLog.textContent = '';
+});
+
+btnToolActivityClear.addEventListener('click', () => {
+  toolActivityLog.innerHTML = '';
+});
+
+tabButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    if (tab === 'tools' || tab === 'events') setActiveInspectorTab(tab);
+  });
+});
+
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.shiftKey) return;
+  e.preventDefault();
+  formChat.requestSubmit();
 });
 
 document.querySelectorAll<HTMLButtonElement>('.filter-btn').forEach((btn) => {
