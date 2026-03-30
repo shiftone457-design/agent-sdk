@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
-import type { Agent, SessionInfo } from 'agent-sdk';
+import type { Agent, SessionInfo, TokenUsage } from 'agent-sdk';
 import { WebSocketServer, type WebSocket, type RawData } from 'ws';
 import type { ClientMessage, ServerMessage } from '../shared/ws-protocol.js';
 import { applySafeToolsAndCalculator, buildAgent } from './agent-factory.js';
@@ -184,7 +184,7 @@ wss.on('connection', (socket: WebSocket) => {
 
           try {
             let finalText = '';
-            let lastUsage: Record<string, unknown> | undefined;
+            let lastUsage: TokenUsage | undefined;
             for await (const event of state.agent.stream(msg.text, {
               sessionId: msg.sessionId,
               signal: ac.signal
@@ -193,7 +193,7 @@ wss.on('connection', (socket: WebSocket) => {
                 finalText += event.content;
               }
               if (event.type === 'end' && event.usage) {
-                lastUsage = event.usage as Record<string, unknown>;
+                lastUsage = event.usage;
               }
               sendJson(socket, { type: 'stream_event', event: serializeStreamEvent(event) });
             }

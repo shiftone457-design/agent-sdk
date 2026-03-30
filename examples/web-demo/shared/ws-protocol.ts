@@ -2,6 +2,8 @@
  * WebSocket message types (browser + server).
  */
 
+import type { TokenUsage } from 'agent-sdk';
+
 export type ModelProvider = 'openai' | 'anthropic' | 'ollama';
 
 export type ClientMessage =
@@ -44,7 +46,7 @@ export type ServerMessage =
       requestId: string;
       sessionId: string;
       finalText: string;
-      usage?: Record<string, unknown>;
+      usage?: TokenUsage;
     }
   | { type: 'sessions:list'; sessions: SessionListItem[] }
   | { type: 'sessions:new'; sessionId: string };
