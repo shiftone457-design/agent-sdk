@@ -21,6 +21,13 @@
   --radius-md: 10px;
   --radius-lg: 14px;
   --font: 'Plus Jakarta Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  /* Windows-friendly mono stack first (ClearType hints better than generic ui-monospace at small sizes) */
+  --font-mono: 'Cascadia Mono', 'Cascadia Code', Consolas, 'Segoe UI Mono', ui-monospace, monospace;
+  --text-ui-sm: 0.8125rem; /* 13px — minimum for crisp body UI on 96dpi */
+  /* Sidebar / settings form: one step up for long reading */
+  --text-form-section: 0.875rem; /* 14px — group legend */
+  --text-form-label: 0.875rem; /* 14px — field caption */
+  --text-form-input: 1rem; /* 16px — inputs / submit (ClearType-friendly) */
   --focus-ring: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
   --transition: 180ms ease;
   color-scheme: light;
@@ -47,7 +54,8 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   line-height: 1.5;
-  letter-spacing: -0.01em;
+  letter-spacing: normal;
+  text-rendering: optimizeLegibility;
   overflow: hidden;
 }
 
@@ -111,12 +119,12 @@ body {
   margin: 0;
   font-size: 1.125rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 }
 
 .brand-sub {
   margin: 0.15rem 0 0;
-  font-size: 0.8rem;
+  font-size: var(--text-ui-sm);
   color: var(--color-text-muted);
   font-weight: 400;
 }
@@ -131,7 +139,7 @@ body {
 .status-pill {
   margin: 0;
   padding: 0.35rem 0.75rem;
-  font-size: 0.8rem;
+  font-size: var(--text-ui-sm);
   font-weight: 500;
   border-radius: 999px;
   border: 1px solid var(--color-border);
@@ -222,10 +230,10 @@ body {
 
 .sidebar-section-head h2 {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--text-ui-sm);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: var(--color-text-muted);
 }
 
@@ -234,26 +242,57 @@ body {
   color: var(--color-text-muted);
 }
 
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
 .settings-form .fieldset {
   border: none;
-  margin: 0 0 1rem;
+  margin: 0 0 1.125rem;
   padding: 0;
+}
+
+.settings-form .fieldset:last-of-type {
+  margin-bottom: 0.75rem;
 }
 
 .settings-form legend {
   padding: 0;
-  margin-bottom: 0.5rem;
-  font-size: 0.75rem;
-  font-weight: 600;
+  margin-bottom: 0.55rem;
+  font-size: var(--text-form-section);
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: normal;
   color: var(--color-primary);
 }
 
 .settings-form label {
   display: block;
-  font-size: 0.75rem;
+  font-size: var(--text-form-label);
   font-weight: 500;
-  color: var(--color-text-muted);
-  margin-bottom: 0.55rem;
+  line-height: 1.45;
+  color: var(--color-text);
+  margin-bottom: 0.6rem;
+}
+
+.settings-form .checkbox {
+  font-size: var(--text-form-label);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.settings-form .checkbox span {
+  line-height: 1.5;
+}
+
+.settings-form .checkbox input {
+  width: 1.0625rem;
+  height: 1.0625rem;
+  flex-shrink: 0;
+  margin-top: 0.22rem;
 }
 
 .settings-form input[type='text'],
@@ -261,15 +300,35 @@ body {
 .settings-form select,
 .chat-form textarea {
   width: 100%;
-  margin-top: 0.2rem;
-  padding: 0.5rem 0.6rem;
+  margin-top: 0.25rem;
+  padding: 0.55rem 0.65rem;
+  min-height: 2.5rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: var(--color-bg);
-  color: inherit;
-  font-size: 0.875rem;
+  color: var(--color-text);
+  font-size: var(--text-form-input);
+  line-height: 1.4;
   font-family: inherit;
   transition: border-color var(--transition), background-color var(--transition);
+}
+
+.settings-form input::placeholder {
+  color: #737373;
+  opacity: 1;
+}
+
+.settings-form select {
+  cursor: pointer;
+}
+
+.settings-form .btn-primary {
+  margin-top: 0.35rem;
+  font-size: var(--text-form-input);
+  font-weight: 600;
+  min-height: 2.75rem;
+  padding-top: 0.55rem;
+  padding-bottom: 0.55rem;
 }
 
 .settings-form input:focus-visible,
@@ -295,7 +354,7 @@ body {
   align-items: flex-start;
   gap: 0.5rem;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: var(--text-ui-sm);
   color: var(--color-text);
   font-weight: 400;
 }
@@ -308,7 +367,7 @@ body {
 
 .session-current {
   margin: 0 0 0.5rem;
-  font-size: 0.8rem;
+  font-size: var(--text-ui-sm);
   color: var(--color-text-muted);
 }
 
@@ -361,7 +420,7 @@ body {
 
 .btn-sm {
   padding: 0.35rem 0.55rem;
-  font-size: 0.75rem;
+  font-size: var(--text-ui-sm);
 }
 
 .btn-block {
@@ -407,10 +466,15 @@ body {
 }
 
 .warnings {
-  font-size: 0.78rem;
+  font-size: var(--text-ui-sm);
   color: var(--color-danger);
   white-space: pre-wrap;
   margin: 0.65rem 0 0;
+}
+
+.sidebar .warnings {
+  font-size: var(--text-form-label);
+  line-height: 1.45;
 }
 
 .workspace {
@@ -429,15 +493,15 @@ body {
 
 .workspace-title {
   display: block;
-  font-size: 0.8125rem;
+  font-size: var(--text-ui-sm);
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: normal;
 }
 
 .workspace-hint {
   display: block;
   margin-top: 0.2rem;
-  font-size: 0.75rem;
+  font-size: var(--text-ui-sm);
   color: var(--color-text-muted);
 }
 
@@ -484,12 +548,12 @@ body {
 }
 
 .msg .role {
-  font-size: 0.65rem;
+  font-size: var(--text-ui-sm);
   font-weight: 600;
   text-transform: uppercase;
   color: var(--color-text-muted);
   margin-bottom: 0.35rem;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
 }
 
 .msg.tool-call {
@@ -519,10 +583,11 @@ body {
 }
 
 .msg-tool-id {
-  font-size: 0.7rem;
+  font-size: var(--text-ui-sm);
   color: var(--color-text-muted);
-  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-family: var(--font-mono);
   margin-bottom: 0.4rem;
+  font-variant-ligatures: none;
 }
 
 .msg-tool-pre {
@@ -531,8 +596,10 @@ body {
   background: var(--color-bg);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
-  font-size: 0.78rem;
-  line-height: 1.4;
+  font-size: var(--text-ui-sm);
+  line-height: 1.45;
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
   white-space: pre-wrap;
   word-break: break-word;
   max-height: min(40vh, 22rem);
@@ -580,7 +647,9 @@ body {
 }
 
 .composer-opt code {
-  font-size: 0.72rem;
+  font-size: var(--text-ui-sm);
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
 }
 
 .composer-buttons {
@@ -607,7 +676,7 @@ body {
   cursor: pointer;
   padding: 0.65rem 0.75rem;
   font-family: inherit;
-  font-size: 0.8rem;
+  font-size: var(--text-ui-sm);
   font-weight: 600;
   border: none;
   background: transparent;
@@ -653,10 +722,10 @@ body {
 }
 
 .panel-toolbar-label {
-  font-size: 0.72rem;
+  font-size: var(--text-ui-sm);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   color: var(--color-text-muted);
 }
 
@@ -697,15 +766,15 @@ body {
 
 .tool-card-name {
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 0.875rem;
   color: var(--color-primary);
 }
 
 .tool-card-badge {
-  font-size: 0.65rem;
+  font-size: var(--text-ui-sm);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   padding: 0.2rem 0.45rem;
   border-radius: 999px;
   border: 1px solid var(--color-border);
@@ -731,20 +800,23 @@ body {
 }
 
 .tool-card-id {
-  font-size: 0.68rem;
+  font-size: var(--text-ui-sm);
   color: var(--color-text-muted);
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   margin-bottom: 0.4rem;
+  font-variant-ligatures: none;
 }
 
 .tool-card-pre {
   margin: 0;
-  padding: 0.45rem 0.5rem;
+  padding: 0.45rem 0.55rem;
   background: var(--color-surface);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
-  font-size: 0.72rem;
-  line-height: 1.35;
+  font-size: var(--text-ui-sm);
+  line-height: 1.45;
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
   white-space: pre-wrap;
   word-break: break-word;
   max-height: 200px;
@@ -763,7 +835,7 @@ body {
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   background: var(--color-bg);
-  font-size: 0.72rem;
+  font-size: var(--text-ui-sm);
   font-weight: 500;
   font-family: inherit;
   color: var(--color-text-muted);
@@ -795,9 +867,10 @@ body {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  font-size: 0.7rem;
-  line-height: 1.4;
-  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: var(--text-ui-sm);
+  line-height: 1.45;
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -807,7 +880,7 @@ body {
   list-style: none;
   padding: 0;
   margin: 0.5rem 0 0;
-  font-size: 0.78rem;
+  font-size: var(--text-ui-sm);
   max-height: 12rem;
   overflow-y: auto;
   border: 1px solid var(--color-border);
@@ -833,12 +906,19 @@ body {
 }
 
 code {
-  font-size: 0.85em;
-  font-family: ui-monospace, monospace;
+  font-size: var(--text-ui-sm);
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
   background: var(--color-surface);
-  padding: 0.1rem 0.35rem;
+  padding: 0.12rem 0.4rem;
   border-radius: 4px;
   border: 1px solid var(--color-border);
+}
+
+#current-session {
+  font-size: var(--text-ui-sm);
+  font-family: var(--font-mono);
+  word-break: break-all;
 }
 
 @media (prefers-reduced-motion: reduce) {
